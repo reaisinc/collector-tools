@@ -17,6 +17,7 @@ import types
 import ConfigParser
 import copy
 import logging
+import sys
 
 Config = ConfigParser.ConfigParser()
 
@@ -2181,7 +2182,7 @@ def __createXML(xmlFile,serverName,serviceName,layerName):
 
 
 def __updateReplica(layer):
-   import sqlite3
+  import sqlite3
 
   sqlite_file = 'my_first_db.sqlite'
   table_name = 'my_table_2'
@@ -3287,18 +3288,36 @@ def printMessage(str):
 def main():
     tbx=Toolbox()
     tool=CreateNewProject()
+    if len(sys.argv)==1:
+        print "Usage:\n"
+        print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd \"fullpath_to_my_project.mxd\" -root \"full_path_to_output_directory\""
 
-    import socket
-    print(socket.gethostname())
-
-    pg="user=postgres dbname=gis host=192.168.99.100"
+    pg=None
+    #"user=postgres dbname=gis host=192.168.99.100"
     user="user"
     host="my.host.com"
     db="arcrest.sqlite"
     mxd="myproject.mxd"
     root="../collector"
+
+    #print "This is the name of the script: ", sys.argv[0]
+    #print "Number of arguments: ", len(sys.argv)
+    #print "The arguments are: " , str(sys.argv)
+    for i in xrange(0,len(sys.argv)):
+        if sys.argv[i] == "-user":
+            user=sys.argv[i+1]
+        elif sys.argv[i]=="-host":
+            host = sys.argv[i+1]
+        elif sys.argv[i]=="-db":
+            db = sys.argv[i+1]
+        elif sys.argv[i]=="-mxd":
+            mxd = sys.argv[i+1]
+        elif sys.argv[i]=="-root":
+            root = sys.argv[i+1]
+        elif sys.argv[i]=="-pg":
+            pg = argv[i+1]
     tool.execute(tool.getParameterInfo(),[mxd,host,user,root,db,pg])
     
- if __name__ == '__main__':
+if __name__ == '__main__':
     if sys.executable.find("python.exe") != -1:
        main()
