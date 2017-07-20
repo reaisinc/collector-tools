@@ -160,20 +160,20 @@ class CreateNewProject(object):
         if not outputfolder.value:
             outputfolder.value=os.getcwd().replace("\\","/")
 
-        sqlitedb = arcpy.Parameter()
-        sqlitedb.name = u'Output_Report_File'
-        sqlitedb.displayName = u'Output Sqlite database'
-        sqlitedb.parameterType = 'Optional'
-        sqlitedb.direction = 'Output'
-        sqlitedb.datatype = u'File'
-        try:
-            sqlitedb.value= Config.get("settings","sqlitedb")
-        except Exception as e:
-           pass        
+        #sqlitedb = arcpy.Parameter()
+        #sqlitedb.name = u'Output_Report_File'
+        #sqlitedb.displayName = u'Output Sqlite database'
+        #sqlitedb.parameterType = 'Optional'
+        #sqlitedb.direction = 'Output'
+        #sqlitedb.datatype = u'File'
+        #try:
+        #    sqlitedb.value= Config.get("settings","sqlitedb")
+        #except Exception as e:
+        #   pass        
 
         pg = arcpy.Parameter()
         pg.name = u'Output_DB_String'
-        pg.displayName = u'Postgresql database connection string  Example: PG:"host=localhost user=postgres dbname=gis"'
+        pg.displayName = u'Postgresql database connection string  Ex: PG:"host=localhost user=postgres dbname=gis"'
         pg.parameterType = 'Optional'
         pg.direction = 'Output'
         pg.datatype = u'GPString'
@@ -187,8 +187,8 @@ class CreateNewProject(object):
         spatialite_path.displayName = u'Path to spatialite executable'
         spatialite_path.parameterType = 'Required'
         spatialite_path.direction = 'Input'
-        spatialite_path.datatype="DEFolder"
-        #spatialite_path.datatype = u'File'
+        #spatialite_path.datatype="DEFolder"
+        spatialite_path.datatype = u'File'
         try:
             spatialite_path.value= Config.get("settings","spatialite_path")
         except Exception as e:
@@ -206,9 +206,31 @@ class CreateNewProject(object):
         except Exception as e:
            pass        
 
+        cert = arcpy.Parameter()
+        cert.name = u'cert_path'
+        cert.displayName = u'cert file for Https server'
+        cert.parameterType = 'Optional'
+        cert.direction = 'Input'
+        cert.datatype = u'File'
+        try:
+            cert.value= Config.get("settings","cert")
+        except Exception as e:
+           pass        
+
+        pem = arcpy.Parameter()
+        pem.name = u'pem_path'
+        pem.displayName = u'pem file for Https server'
+        pem.parameterType = 'Optional'
+        pem.direction = 'Input'
+        pem.datatype = u'File'
+        try:
+            pem.value= Config.get("settings","pem")
+        except Exception as e:
+           pass        
+
         #param0.filter.type = "ValueList"
         #param0.filter.list = ["Street","Aerial","Terrain","Topographic"]
-        parameters = [servername,username,outputfolder,sqlitedb,pg,spatialite_path,gdal_path]
+        parameters = [servername,username,outputfolder,pg,spatialite_path,gdal_path,cert,pem]
         #username,projecttitle,projectname,tags,summary,description,
         return parameters
 
@@ -216,11 +238,11 @@ class CreateNewProject(object):
         return True
 
     def updateParameters(self, parameters): #optional
-       if parameters[2].altered:
-          try:
-              os.makedirs(parameters[2].valueAsText)
-          except Exception as e:
-              return
+       #if parameters[2].altered:
+       #   try:
+       #       os.makedirs(parameters[2].valueAsText)
+       #   except Exception as e:
+       #       return
        return
 
     def updateMessages(self, parameters): #optional
@@ -237,13 +259,17 @@ class CreateNewProject(object):
         serverName = parameters[0].valueAsText
         username = parameters[1].valueAsText        
         baseDestinationPath = parameters[2].valueAsText
-        sqliteDb = parameters[3].valueAsText
-        pg  = parameters[4].valueAsText
-        spatialite_path=parameters[5].valueAsText
-        gdal_path=parameters[6].valueAsText
+        #sqliteDb = parameters[3].valueAsText
+        pg  = parameters[3].valueAsText
+        spatialite_path=parameters[4].valueAsText
+        gdal_path=parameters[5].valueAsText
+        cert = parameters[6].valueAsText
+        pem = parameters[7].valueAsText
         #toolkitPath+"/spatialite/spatialite.exe
         created_ts=int(time.time()*1000)
         sep = "/"
+        printMessage("****************************************************************")
+        printMessage("Parameters")
 
         # suppose you want to add it to the current MXD (open MXD)
         try:
@@ -256,14 +282,18 @@ class CreateNewProject(object):
                  username= vals[2]
               if len(vals)>3:
                  baseDestinationPath=vals[3].replace("\\","/")
+              #if len(vals)>4:
+              #   sqliteDb=vals[4]
               if len(vals)>4:
-                 sqliteDb=vals[4]
+                 pg=vals[4]
               if len(vals)>5:
-                 pg=vals[5]
+                 spatialite_path=vals[5]
               if len(vals)>6:
-                 spatialite_path=vals[6]
+                 gdal_path=vals[6]
               if len(vals)>7:
-                 gdal_path=vals[7]
+                 cert=vals[7]
+              if len(vals)>8:
+                 pem=vals[8]
 
               mxdName=vals[0].replace("\\","/")
               mxd = arcpy.mapping.MapDocument(mxdName)
@@ -273,21 +303,21 @@ class CreateNewProject(object):
            printMessage("Still Unable to open map document.  Make sure background processing is unchecked in the geoprocessing options")
            return
 
-        if sqliteDb.find(".sqlite") == -1:
-            sqliteDb = sqliteDb + ".sqlite"
+        #if sqliteDb.find(".sqlite") == -1:
+        #    sqliteDb = sqliteDb + ".sqlite"
         #put file in the catalogs folder
-        sqliteDb = os.path.join(baseDestinationPath,"catalogs",sqliteDb) #.replace("\\","/")
+        sqliteDb = os.path.join(baseDestinationPath,"catalogs","collectorDb.sqlite") #.replace("\\","/")
         if os.path.exists(sqliteDb):
             os.remove(sqliteDb)
         #locate spatialite, ogr2ogr, and ogrinfo executables
         #if sys.platform== 'win32':
         gdal_path=gdal_path.replace("/","\\")
-        if os.path.exists(spatialite_path + os.sep + "spatialite.exe"):
-            spatialite_path = os.path.join(spatialite_path , "spatialite.exe") #.replace("/","\\")
-        elif os.path.exists(spatialite_path + os.sep + "spatialite"):
-            spatialite_path = (spatialite_path + os.sep + "spatialite")
-        else:
-           printMessage("Unabled to located spatialite executable")
+        if not os.path.exists(spatialite_path ):
+        #    spatialite_path = os.path.join(spatialite_path , "spatialite.exe") #.replace("/","\\")
+        #elif os.path.exists(spatialite_path + os.sep + "spatialite"):
+        #    spatialite_path = (spatialite_path + os.sep + "spatialite")
+        #else:
+           printMessage("Unable to locate spatialite executable")
            return
 
         if os.path.exists(gdal_path + "/bin/gdal/apps/ogr2ogr.exe"):
@@ -295,7 +325,7 @@ class CreateNewProject(object):
         elif os.path.exists(gdal_path + os.sep + "ogr2ogr"):
             ogr2ogr_path = (gdal_path + os.sep + "ogr2ogr")
         else:
-           printMessage("Unabled to located ogr2ogr executable")
+           printMessage("Unable to locate ogr2ogr executable")
            return
 
         if os.path.exists(gdal_path + os.sep + "/bin/gdal/apps/ogrinfo.exe"):
@@ -303,7 +333,7 @@ class CreateNewProject(object):
         elif os.path.exists(gdal_path + os.sep + "ogrinfo"):
             ogrinfo_path = (gdal_path + os.sep + "ogrinfo")
         else:
-           printMessage("Unabled to located ogrinfo executable")
+           printMessage("Unable to locate ogrinfo executable")
            return
 
         if os.path.exists(gdal_path + os.sep + "/bin/gdal-data"):
@@ -312,16 +342,20 @@ class CreateNewProject(object):
         elif os.path.exists(gdal_path + os.sep + "gdal-data"):
             gdal_data_path = (gdal_path + os.sep + "gdal-data")
         else:
-           printMessage("Unabled to located gdal-data path")
+           printMessage("Unable to locate gdal-data path")
            return
-        
+
+        if not pem:
+            pem=""
+        if not cert:
+            cert=""
 
         #try:
         #   arcpy.gp.CreateSQLiteDatabase(sqliteDb, "SPATIALITE")
         #except Exception as e:
         #   arcpy.AddMessage("Database already exists")
 
-        printMessage("Exporting dataframe: " + mxd.activeDataFrame.name)
+        
         serviceName = mxd.activeDataFrame.name.replace(" ","").lower()
         if serviceName=='Layers':
            printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
@@ -335,7 +369,6 @@ class CreateNewProject(object):
             printMessage("Template path not found: " + templatePath)
             return
 
-        
         cfgfile = open(toolkitPath+"/settings.ini",'w')
         try:
             Config.add_section("settings")
@@ -344,12 +377,15 @@ class CreateNewProject(object):
 
         printMessage("Server name: " +serverName)
         printMessage("User name: " + username)
+        printMessage("MXD Path: " + mxd.filePath)
         printMessage("Destination path: " + baseDestinationPath)
         printMessage("Sqlite path: " + sqliteDb)
         printMessage("Spatialite path: " + spatialite_path)
         printMessage("ogr2ogr path: " + ogr2ogr_path)
         printMessage("ogrinfo path: " + ogrinfo_path)
         printMessage("gdal-data path: " + gdal_data_path)
+        printMessage("cert path: " + cert)
+        printMessage("pem path: " + pem)
 
         if pg:
             printMessage("Postgresql connection: " + pg)
@@ -357,10 +393,13 @@ class CreateNewProject(object):
 
         Config.set("settings","server",serverName)
         Config.set("settings","username",username)
+        Config.set("settings","mxd",mxd.filePath)
         Config.set("settings","destination",baseDestinationPath)
         Config.set("settings","sqlitedb",sqliteDb)
         Config.set("settings","spatialite_path",spatialite_path)
         Config.set("settings","gdal_path",gdal_path)
+        Config.set("settings","cert",cert)
+        Config.set("settings","pem",pem)
 
 
         if pg:
@@ -369,6 +408,9 @@ class CreateNewProject(object):
         cfgfile.close()
         del cfgfile       
         
+        printMessage("****************************************************************")
+        printMessage("Settings")
+        printMessage("Exporting dataframe: " + mxd.activeDataFrame.name)
         if baseDestinationPath:
               baseDestinationPath = unicode(baseDestinationPath).encode('unicode-escape')
               baseDestinationPath=baseDestinationPath.replace("\\","/")+ sep +"catalogs"
@@ -423,6 +465,9 @@ class CreateNewProject(object):
         if not os.path.exists(mapfileDestinationPath):
             os.makedirs(mapfileDestinationPath)
         printMessage("Mapfile path: " +mapfileDestinationPath)
+        printMessage("****************************************************************")
+        printMessage("Log output")
+        
 
         symbols = getSymbology(mxd)
         dataFrames = arcpy.mapping.ListDataFrames(mxd, "*")
@@ -452,8 +497,8 @@ class CreateNewProject(object):
 
         config["hostname"]=serverName
         config["username"]=username
-        config["pemPath"]=""
-        config["certPath"]=""
+        config["pemPath"]=pem
+        config["certPath"]=cert
         config["httpPort"]="80"
         config["httpsPort"]="443"
 
@@ -657,8 +702,8 @@ class CreateNewProject(object):
            else:
                  ws=os.path.dirname(desc.catalogPath).replace("\\","/")
 
-           for j,rel in enumerate(allData):
-              printMessage(str(j) + ": " + rel.name)
+           #for j,rel in enumerate(allData):
+           #   printMessage(str(j) + ": " + rel.name)
 
            relationships = [c.name for c in arcpy.Describe(ws).children if c.datatype == "RelationshipClass"]
 
@@ -684,7 +729,7 @@ class CreateNewProject(object):
 
            id=0
            destIds={}
-           printMessage("Find relationships")
+           printMessage("Finding relationships")
            for rc in relationships:
              relDesc = arcpy.Describe(rootFGDB+"/"+rc)
              if relDesc.isAttachmentRelationship:
@@ -692,36 +737,36 @@ class CreateNewProject(object):
              try:
                 originId=layerIds[relDesc.originClassNames[0]]
              except:
-                printMessage("Skipping relation: " + relDesc.originClassNames[0])
+                printMessage("Skipping unused relationship: " + relDesc.originClassNames[0])
                 continue
 
              try:
                 destId=layerIds[relDesc.destinationClassNames[0]]
              except:
-                printMessage("Skipping relation: " + relDesc.destinationClassNames[0])
+                printMessage("Skipping unused relationship: " + relDesc.destinationClassNames[0])
                 continue
 
              #if not layerIds.has_key(originId):
              #    printMessage("Skipping relation: " + relDesc.destinationClassNames[0])
              #    continue
 
-             printMessage("Relationship Name: " + rc)
-             printMessage("Origin Class Names")
-             printMessage(relDesc.originClassNames)
+             #printMessage("Relationship Name: " + rc)
+             #printMessage("Origin Class Names")
+             #printMessage(relDesc.originClassNames)
 
-             printMessage("Origin Class Keys")
-             printMessage(relDesc.originClassKeys)
+             #printMessage("Origin Class Keys")
+             #printMessage(relDesc.originClassKeys)
 
-             printMessage("Destination Class Names")
-             printMessage(relDesc.destinationClassNames)
+             #printMessage("Destination Class Names")
+             #printMessage(relDesc.destinationClassNames)
 
-             printMessage("Destination Class Keys")
-             printMessage(relDesc.destinationClassKeys)
+             #printMessage("Destination Class Keys")
+             #printMessage(relDesc.destinationClassKeys)
 
-             printMessage("Key type:  "+relDesc.keyType)
-             printMessage(relDesc.notification)
-             printMessage("backwardPathLabel:  "+relDesc.backwardPathLabel)
-             printMessage("forwardPathLabel:  "+relDesc.forwardPathLabel)
+             #printMessage("Key type:  "+relDesc.keyType)
+             #printMessage(relDesc.notification)
+             #printMessage("backwardPathLabel:  "+relDesc.backwardPathLabel)
+             #printMessage("forwardPathLabel:  "+relDesc.forwardPathLabel)
 
              #originId=getDataIndex(allData,relDesc.originClassNames[0])
              #destId=getDataIndex(allData,relDesc.destinationClassNames[0])
@@ -1017,7 +1062,7 @@ class CreateNewProject(object):
                else:
                    featureName=os.path.basename(desc.catalogPath)
   
-               printMessage(lyr.name+": " + featureName)
+               printMessage("Loading layer: "+lyr.name+": " + featureName)
  
                feature_json=openJSON(templatePath + "/name.FeatureServer.id.json")
                feature_json['defaultVisibility']=lyr.visible
@@ -1210,7 +1255,7 @@ class CreateNewProject(object):
                      if j in globalFields:
                         i['attributes'][j]=i['attributes'][j].replace("{","").replace("}","")
                
-               printMessage("Saving layer " + str(layerIds[lyr.name]) + " to JSON")
+               printMessage("Saving layer " + lyr.name + "(" + str(layerIds[lyr.name]) + ") to JSON")
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".query.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[lyr.name],"query",file)
 
@@ -1321,7 +1366,7 @@ class CreateNewProject(object):
                       attributes[ field['name'] ]=None
                feature_json['templates'][0]['prototype']['attributes']=attributes
 
-               printMessage(tbl.name+": " + featureName)
+               #printMessage(tbl.name+": " + featureName)
                feature_json['relationships']=relationshipObj[featureName]
 
                #set editor tracking fields
@@ -1378,7 +1423,7 @@ class CreateNewProject(object):
 
                #dataName = os.path.basename(desc.dataElement.catalogPath)
                #layerObj={"name":lyr.name,"data":dataName}
-               printMessage("Saving table " + str(layerIds[tbl.name]) + " to JSON")
+               printMessage("Saving table " + tbl.name + "("+str(layerIds[tbl.name]) + ") to JSON")
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".query.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[tbl.name],"query",file)
 
@@ -1400,7 +1445,7 @@ class CreateNewProject(object):
            for lyr in operationalLayers:
                desc = arcpy.Describe(lyr)
                if desc.dataType == "FeatureLayer":
-                  printMessage("Saving layer to shapefile: "+ lyr.name)
+                  printMessage("Exporting layer to shapefile: "+ lyr.name)
                   arcpy.FeatureClassToFeatureClass_conversion(desc.dataElement.catalogPath,
                      dataDestinationPath,
                      lyr.name+".shp")
@@ -1446,7 +1491,7 @@ def clearSelections(mxd):
             continue
           if not lyr.isFeatureLayer:
             continue
-          printMessage(lyr.name +": " + arcpy.Describe(lyr).catalogPath)
+          #printMessage(lyr.name +": " + arcpy.Describe(lyr).catalogPath)
           arcpy.SelectLayerByAttribute_management(lyr, "CLEAR_SELECTION")
           #arcpy.Describe(lyr).catalogPath
 
@@ -1465,7 +1510,7 @@ def getSymbology(mxd):
     zz = zipfile.ZipFile(msdPath)
     EXCLUDED_FILE_NAMES = ["DocumentInfo.xml", "GISProject.xml", "layers/layers.xml"]
     for fileName in (fileName for fileName in zz.namelist() if not fileName in EXCLUDED_FILE_NAMES):
-        printMessage("Opening: " + fileName)
+        #printMessage("Opening: " + fileName)
         dom = parse(zz.open(fileName))
         symb = dom.getElementsByTagName("Symbolizer")
         if symb.length>0:
@@ -1473,7 +1518,7 @@ def getSymbology(mxd):
             rootname = name.split("/")
             if len(rootname)>1:
               name=rootname[1]
-            printMessage("Symbology found for : " + name + " length: " + str(symb.length))
+            #printMessage("Symbology found for : " + name + " length: " + str(symb.length))
             symbols[name]=symb
             #printMessage("Found: " + str(symb.length))
             #name,lyr = self.loadMsdLayerDom(dom)
@@ -1508,7 +1553,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
               "NETWORK_DATA;FEATURE_AND_TABULAR_DATA","OPTIMIZE_SIZE","ONLINE","PNG","1","#")
               #OPTIMIZE_SIZE, NON_OPTIMIZE_SIZE
   filenames = next(os.walk(replicaDestinationPath + "/"+serviceName+"/data/"))[2]
-  printMessage("Rename " + replicaDestinationPath + "/"+serviceName+"/data/"+filenames[0]+" to "+ replicaDestinationPath+"/"+serviceName+".geodatabase")
+  printMessage("Renamed " + replicaDestinationPath + "/"+serviceName+"/data/"+filenames[0]+" to "+ replicaDestinationPath+"/"+serviceName+".geodatabase")
   #if offline geodatabase exists, must delete first
   newFullReplicaDB=replicaDestinationPath+"/"+serviceName+".geodatabase"
   try:
@@ -1594,8 +1639,6 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      else:
         tables=tables+',"'+featureName+'"'
      
-     
-     
      if hasattr(desc,"featureClass"):
          lyrtype = "esriDTFeatureClass"
          useGeometry="true"
@@ -1615,7 +1658,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      sqlCreation = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?"
      c.execute(sqlCreation, (featureName,))
      sql = c.fetchone()[0]
-     printMessage(sql )
+     #printMessage(sql )
      sql5.append(("alter table " + featureName + " rename to " + featureName + "_org"))
      #remove trailing close paren
      sql = sql[:-1]
@@ -1697,10 +1740,6 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
          '(select UUID from "GDB_Items" where Name="MyReplica" limit 1),'
          '(select UUID from "GDB_Items" where Name="'+featureName+'" limit 1),'
          '1,NULL)'))
-
-    
-        
-
      desc = arcpy.Describe(lyr)
      rels=""
      if desc.relationshipClassNames:
@@ -1769,7 +1808,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      else:
          sql5.append(('UPDATE "GDB_TableRegistry" set object_flags=262147 where table_name=\''+featureName+"'"))
 
-     printMessage("Loading " + lyr.name)
+     #printMessage("Loading " + lyr.name)
      #now process any attachment tables
      #OBS! The order of fields in these tables is important!!!
      if arcpy.Exists(inFeaturesGDB+"/"+featureName+"__ATTACH"):
@@ -1890,7 +1929,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
            sqlCreation = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?"
            c.execute(sqlCreation, (featureName + "__ATTACH",))
            sql = c.fetchone()[0]
-           printMessage(sql)
+           #printMessage(sql)
            #remove trailing close paren
            sql = sql[:-1]
            sql = sql.replace("primary key ", "")
@@ -2020,10 +2059,11 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
        f.write(sql4)
        f.close()
   #printMessage("Running \"" + toolkitPath+"/spatialite/spatialite.exe\" \"" + newFullReplicaDB + "\"  < " + name)
-  printMessage("Running \"" + spatialite_path+ "\" \"" + newFullReplicaDB + "\"  < \"" + name + "\"")
+  #printMessage("Running \"" + spatialite_path+ "\" \"" + newFullReplicaDB + "\"  < \"" + name + "\"")
 
   try:
-     os.system("\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>" + replicaDestinationPath + os.sep + serviceName + ".log 2>&1")
+     #os.system("\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>" + replicaDestinationPath + os.sep + serviceName + ".log 2>&1")
+     result = subprocess.check_output("\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>" + replicaDestinationPath + os.sep + serviceName + ".log 2>&1", shell=True, stderr=subprocess.STDOUT)
   except:
      printMessage("Unable to run sql commands")
   
@@ -2046,7 +2086,7 @@ def createSingleReplica(templatePath,df,lyr,replicaDestinationPath,toolkitPath,f
   saveReplica(tmpMxd,replicaDestinationPath + "/"+lyr.name,lyr,desc)
   #move to root folder and delete the "data" folder
   filenames = next(os.walk(replicaDestinationPath + "/"+lyr.name+"/data/"))[2]
-  printMessage("Rename " + replicaDestinationPath + "/"+lyr.name+"/data/"+filenames[0]+" to "+ replicaDestinationPath+"/"+lyr.name+".geodatabase")
+  printMessage("Renamed " + replicaDestinationPath + "/"+lyr.name+"/data/"+filenames[0]+" to "+ replicaDestinationPath+"/"+lyr.name+".geodatabase")
   #if offline geodatabase exists, must delete first
   newReplicaDB=replicaDestinationPath+"/"+lyr.name+".geodatabase"
   try:
@@ -2084,9 +2124,10 @@ def createSingleReplica(templatePath,df,lyr,replicaDestinationPath,toolkitPath,f
              f.write(";\n")
 
           f.close()
-     printMessage("Running \"" + spatialite_path + "\" \""+ newReplicaDB + "\"  < \"" + name + "\"")
+     #printMessage("Running \"" + spatialite_path + "\" \""+ newReplicaDB + "\"  < \"" + name + "\"")
      try:
-        os.system("\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1")
+        #os.system("\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1")
+        result = subprocess.check_output("\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1", shell=True, stderr=subprocess.STDOUT)
      except:
         printMessage("Unable to run sql commands")
 
@@ -2505,7 +2546,7 @@ def getPopupInfo(lyr):
 #get the fields for the popup
 def getFieldInfos(layer):
    popInfo=[]
-   printMessage("Layer name: " + layer.name)
+   #printMessage("Layer name: " + layer.name)
    #if layer.supports['FEATURECLASS']:
    #     printMessage("Layer has featureclass")
    desc = arcpy.Describe(layer)
@@ -2615,8 +2656,8 @@ def getFields(layer):
       catPath = desc.dataElement.catalogPath
    else:
       catPath = desc.catalogPath
-   printMessage("Catalog path: "+catPath)
-   printMessage(desc.dataType)
+   #printMessage("Catalog path: "+catPath)
+   #printMessage(desc.dataType)
    if desc.dataType == "FeatureLayer":
         allfields= arcpy.ListFields(catPath)
    elif desc.dataType == "TableView":
@@ -2915,7 +2956,7 @@ def getPointSymbol(sym):
     symb = sym.getElementsByTagName("CIMSymbolLayer")
     size = sym.getElementsByTagName("Size")
     if len(size) > 0:
-       printMessage("Size: " + size[0].childNodes[0].nodeValue)
+       #printMessage("Size: " + size[0].childNodes[0].nodeValue)
        obj['size']= num(size[0].childNodes[0].nodeValue)
 
     #type = symb.getAttribute("xsi:type")
@@ -2940,7 +2981,7 @@ def getPointSymbol(sym):
           
           width = i.getElementsByTagName("Width")
           if len(width)>0:
-             printMessage("Width: " + width[0].childNodes[0].nodeValue)
+             #printMessage("Width: " + width[0].childNodes[0].nodeValue)
              obj['outline']['width']=num(width[0].childNodes[0].nodeValue)  
           
        
@@ -2974,7 +3015,7 @@ def getPolygonSymbol(sym):
           #   printMessage("Size: " + size[0].childNodes[0].nodeValue)
           #   obj['outline']['size']= num(size[0].childNodes[0].nodeValue)
           if len(width)>0:
-             printMessage("Width: " + width[0].childNodes[0].nodeValue)
+             #printMessage("Width: " + width[0].childNodes[0].nodeValue)
              obj['outline']['width']=num(width[0].childNodes[0].nodeValue)  
           
     return obj
@@ -3012,7 +3053,7 @@ def getColorObj(color):
              int(color[0].getElementsByTagName("B")[0].childNodes[0].nodeValue),
              int(color[0].getElementsByTagName("Alpha")[0].childNodes[0].nodeValue) 
        ]
-       printMessage("Color (polygon): " + colorStr) 
+       #printMessage("Color (polygon): " + colorStr) 
        return colorObj
     
     elif len(color[0].getElementsByTagName("H")) > 0:
@@ -3028,7 +3069,7 @@ def getColorObj(color):
              int(color[0].getElementsByTagName("Alpha")[0].childNodes[0].nodeValue)
        ) 
        
-       printMessage("Color (polygon): " + colorStr) 
+       #printMessage("Color (polygon): " + colorStr) 
        return colorObj
     
          #if patt[0].getAttribute("xsi:type")=="typens:CIMFilledStroke":
@@ -3060,7 +3101,7 @@ def getSymbolColora(sym,obj):
             obj['outline']['color']=[ int(color[0].getElementsByTagName("R")[0].childNodes[0].nodeValue), int(color[0].getElementsByTagName("G")[0].childNodes[0].nodeValue), int(color[0].getElementsByTagName("B")[0].childNodes[0].nodeValue),255]
          else:
             obj['color']=[ int(color[0].getElementsByTagName("R")[0].childNodes[0].nodeValue), int(color[0].getElementsByTagName("G")[0].childNodes[0].nodeValue), int(color[0].getElementsByTagName("B")[0].childNodes[0].nodeValue),255]
-         printMessage("Color (polygon): " + colorStr)
+         #printMessage("Color (polygon): " + colorStr)
     return obj
 
 def getGroupSymbols(sym):
@@ -3118,9 +3159,9 @@ def getSymbol(lyr,sym,name):
          #drawingInfo['renderer']['symbol']['outline']={}
 
    #renderer->uniqueValueInfos
-   printMessage("******Creating symbology for " + name + "*******")
+   #printMessage("******Creating symbology for " + name + "*******")
    for i in sym[0].childNodes:
-      printMessage(i.tagName + ": " + i.getAttribute("xsi:type"))
+      #printMessage(i.tagName + ": " + i.getAttribute("xsi:type"))
       #printMessage(i)
       #printMessage(str(i.childNodes.length))
       if i.tagName=='Fields':
@@ -3136,7 +3177,7 @@ def getSymbol(lyr,sym,name):
                  drawingInfo['renderer']['uniqueValueInfos'] = getGroupSymbols(k)
       elif i.tagName == "Symbol":
          for j in i.childNodes:
-           printMessage(" " + j.tagName + ": " + j.getAttribute("xsi:type"))
+           #printMessage(" " + j.tagName + ": " + j.getAttribute("xsi:type"))
            #get first symbol
            if j.tagName=='Symbol':
                  if j.getAttribute("xsi:type")=="typens:CIMPointSymbol":
@@ -3168,7 +3209,7 @@ def saveSqliteToPG(tables,sqliteDb,pg):
     
     for table in tables:
        cmd = "\""+ogr2ogr_path+"\"  -lco FID=OBJECTID -preserve_fid  --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + sqliteDb + "\" " + table + " -nlt None -overwrite"
-       printMessage("Running " + cmd)
+       #printMessage("Running " + cmd)
        try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3176,14 +3217,14 @@ def saveSqliteToPG(tables,sqliteDb,pg):
            printMessage("Unable to run sql commands: " + cmd)
     
     cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table services alter column json type jsonb using json::jsonb\""
-    printMessage("Running " + cmd)
+    #printMessage("Running " + cmd)
     try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     except:
            printMessage("Unable to run sql commands: " + cmd)
     cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table catalog alter column json type jsonb using json::jsonb\""
-    printMessage("Running " + cmd)
+    #printMessage("Running " + cmd)
     try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3206,7 +3247,7 @@ def saveSqliteServiceTablesToPG(serviceDb,pg):
     for table in tables:
         #-lco FID=OBJECTID -preserve_fid  
         cmd = "\"" + ogr2ogr_path+"\" -lco LAUNDER=NO -lco GEOMETRY_NAME=the_geom --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + serviceDb + "\" \""+table+"\" -overwrite"
-        printMessage("Running " + cmd)
+        #printMessage("Running " + cmd)
         try:
               #os.system(cmd)
               result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3229,7 +3270,7 @@ def saveToPg(lyr,pg):
        cmd = "\"" + ogr2ogr_path+"\" -lco LAUNDER=NO -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+ gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -overwrite"
    else:
        cmd = "\"" + ogr2ogr_path+"\" -lco LAUNDER=NO -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -nlt None -overwrite"
-   printMessage("Running " + cmd)
+   #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3252,7 +3293,7 @@ def saveAttachTableToPg(fgdb,lyr,suffix,pg):
        cmd = "\"" + ogr2ogr_path+"\" -lco LAUNDER=NO -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -overwrite"
    else:
        cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"Postgresql\" PG:\"" + pg + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -nlt None -overwrite"
-   printMessage("Running " + cmd)
+   #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3260,7 +3301,7 @@ def saveAttachTableToPg(fgdb,lyr,suffix,pg):
         printMessage("Unable to run sql commands")
    #find the globalid
    cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table \\\""+lyr+suffix+"\\\" rename \\\"GlobalID\\\" to \\\"GLOBALID\\\""
-   printMessage("Running " + cmd)
+   #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3269,7 +3310,7 @@ def saveAttachTableToPg(fgdb,lyr,suffix,pg):
 
    #need to rename grazing_inspections_GlobalID fields to REL_GLOBALID
    cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table \\\""+lyr+suffix+"\\\" rename \\\""+lyr + "_GlobalID\\\" to \\\"REL_GLOBALID\\\""
-   printMessage("Running " + cmd)
+   #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3290,7 +3331,7 @@ def saveToSqlite(lyr,sqliteDb):
        cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -append"
    else:
        cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+ gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -nlt None -append"
-   printMessage("Running " + cmd)
+   #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -3376,20 +3417,79 @@ def printMessage(str):
 def main():
     tbx=Toolbox()
     tool=CreateNewProject()
-    if len(sys.argv)==1:
-        print "Usage:\n"
-        print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd \"fullpath_to_my_project.mxd\" -root \"full_path_to_output_directory\" -db \"name_of_sqlite_db\" -spatialite_path \"full_path_to_spatialite\" -gdal_path \"full_path_to_ogr2ogr\""
-        return
 
     pg=None
     #"user=postgres dbname=gis host=192.168.99.100"
+    #set dummy values
     user="user"
     host="my.host.com"
-    db="collectorDb.sqlite"
-    mxd="myproject.mxd"
-    root="../collector"
-    spatialite_path="../arcrestgo/spatialite/"
+    #db="collectorDb.sqlite"
+    mxd=None
+    output="../collector"
+    spatialite_path="../arcrestgo/spatialite/spatialite.exe"
     gdal_path="../arcrestgo/gdal/"
+    cert=""
+    pem=""
+
+    #load settings
+    Config.read(os.getcwd()+"/settings.ini")
+    try:
+        host = Config.get("settings","server")
+    except Exception as e:
+        pass
+
+    try:
+        user= Config.get("settings","username")
+    except Exception as e:
+        pass
+
+    try:
+        output= Config.get("settings","destination")
+    except Exception as e:
+        pass
+        
+    if not output:
+        output=os.getcwd().replace("\\","/")
+
+    try:
+        mxd= Config.get("settings","mxd")
+    except Exception as e:
+        pass        
+
+    #try:
+    #    db= Config.get("settings","sqlitedb")
+    #except Exception as e:
+    #    pass        
+
+    try:
+        pg= Config.get("settings","pg")
+    except Exception as e:
+        pass        
+
+    try:
+        pem= Config.get("settings","pem")
+    except Exception as e:
+        pass        
+
+    try:
+        cert= Config.get("settings","cert")
+    except Exception as e:
+        pass        
+
+    try:
+        spatialite_path= Config.get("settings","spatialite_path")
+    except Exception as e:
+        pass        
+
+    try:
+        gdal_path= Config.get("settings","gdal_path")
+    except Exception as e:
+        pass      
+
+    if len(sys.argv)==1 and not mxd and not host and not user and not output and not spatialite_path and not gdal_path:
+        print "Usage:\n"
+        print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd <fullpath_to_my_project.mxd> -output <full_path_to_output_directory> -spatialite_path <full_path_to_spatialite_executable> -gdal_path <full_path_to_gdal_directory> -pem <full_path_to_pem> -cert <full_path_to_cert>"
+        return
 
     #print "This is the name of the script: ", sys.argv[0]
     #print "Number of arguments: ", len(sys.argv)
@@ -3399,20 +3499,24 @@ def main():
             user=sys.argv[i+1]
         elif sys.argv[i]=="-host":
             host = sys.argv[i+1]
-        elif sys.argv[i]=="-db":
-            db = sys.argv[i+1]
+        #elif sys.argv[i]=="-db":
+        #    db = sys.argv[i+1]
         elif sys.argv[i]=="-mxd":
             mxd = sys.argv[i+1]
         elif sys.argv[i]=="-root":
-            root = sys.argv[i+1]
+            root_path = sys.argv[i+1]
         elif sys.argv[i]=="-pg":
             pg = sys.argv[i+1]
         elif sys.argv[i]=="-spatialite_path":
             spatialite_path = sys.argv[i+1]
         elif sys.argv[i]=="-gdal_path":
             gdal_path = sys.argv[i+1]
+        elif sys.argv[i]=="-cert":
+            cert = sys.argv[i+1]
+        elif sys.argv[i]=="-pem":
+            pem = sys.argv[i+1]
 
-    tool.execute(tool.getParameterInfo(),[mxd,host,user,root,db,pg,spatialite_path,gdal_path])
+    tool.execute(tool.getParameterInfo(),[mxd,host,user,output,pg,spatialite_path,gdal_path,cert,pem])
     
 if __name__ == '__main__':
     if sys.executable.find("python.exe") != -1:
