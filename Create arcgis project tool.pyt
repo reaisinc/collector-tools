@@ -502,7 +502,7 @@ class CreateNewProject(object):
         config["httpPort"]="80"
         config["httpsPort"]="443"
 
-        config["rootPath"]=baseDestinationPath
+        config["dataPath"]=baseDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
 
         #config["services"][serviceName]["mxd"]=mxd.filePath
@@ -514,7 +514,6 @@ class CreateNewProject(object):
         config["sqliteDb"]=sqliteDb
         config["pg"]=pg
         config["dataSource"]="sqlite"
-        config["rootPath"]=baseDestinationPath
         
         #config["services"][serviceName]["layers"]={}
 
