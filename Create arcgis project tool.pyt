@@ -3403,6 +3403,10 @@ def LoadService(sqliteDb,service,name,  layerid,dtype,file):
     conn.commit()
     conn.close()
 
+def printUsage():
+    print "Usage:\n"
+    print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd <fullpath_to_my_project.mxd> -output <full_path_to_output_directory> -spatialite_path <full_path_to_spatialite_executable> -gdal_path <full_path_to_gdal_directory> -pem <full_path_to_pem> -cert <full_path_to_cert>"
+    
 def printMessage(str):
   logger.info(str)
   if sys.executable.find("python.exe") != -1:
@@ -3486,8 +3490,7 @@ def main():
         pass      
 
     if len(sys.argv)==1 and not mxd and not host and not user and not output and not spatialite_path and not gdal_path:
-        print "Usage:\n"
-        print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd <fullpath_to_my_project.mxd> -output <full_path_to_output_directory> -spatialite_path <full_path_to_spatialite_executable> -gdal_path <full_path_to_gdal_directory> -pem <full_path_to_pem> -cert <full_path_to_cert>"
+        printUsage()
         return
 
     #print "This is the name of the script: ", sys.argv[0]
@@ -3514,6 +3517,9 @@ def main():
             cert = sys.argv[i+1]
         elif sys.argv[i]=="-pem":
             pem = sys.argv[i+1]
+        elif sys.argv[i]=="-h":
+            printUsage()
+            return
 
     tool.execute(tool.getParameterInfo(),[mxd,host,user,output,pg,spatialite_path,gdal_path,cert,pem])
     
