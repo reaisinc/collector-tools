@@ -400,10 +400,11 @@ class CreateNewProject(object):
         Config.set("settings","gdal_path",gdal_path)
         Config.set("settings","cert",cert)
         Config.set("settings","pem",pem)
-
-
         if pg:
             Config.set("settings","pg",pg)
+        else:
+            Config.set("settings","pg","")
+
         Config.write(cfgfile)
         cfgfile.close()
         del cfgfile       
@@ -1192,6 +1193,8 @@ class CreateNewProject(object):
 
            #create a JSON geometry file for each feature layer
            id=0
+           globalFields=[]
+           valid_fields =[]# ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
            for lyr in operationalLayers:
                desc = arcpy.Describe(lyr)
                if hasattr(desc, "layer"):
@@ -1223,6 +1226,8 @@ class CreateNewProject(object):
                         #if i[1]=="OriginPrimary":
                         if i[1]=="OriginForeign":
                             layerObj["joinField"]=i[0]
+                            globalFields.append(layerObj["joinField"])
+                            valid_fields.append(layerObj["joinField"])
 
                #fields = copy.deepcopy(feature_json['fields'])
                feature_json = json.loads(fdesc.json)
@@ -1244,10 +1249,14 @@ class CreateNewProject(object):
                    feature_json['objectIdField']=desc.OIDFieldName
                    layerObj["oidname"]=desc.OIDFieldName
                    feature_json['objectIdFieldName']=desc.OIDFieldName
+                   valid_fields.append(desc.OIDFieldName)
+
                if desc.hasGlobalID:
                    feature_json['globalIdField'] = desc.globalIDFieldName
                    feature_json['globalIdFieldName']=desc.globalIDFieldName
                    layerObj["globaloidname"]=desc.globalIDFieldName
+                   globalFields.append(desc.globalIDFieldName)
+                   valid_fields.append(desc.globalIDFieldName)
 
                layerObj["type"]="layer"
                #remove the defaultValue is it is NEWID() WITH VALUES
@@ -1258,7 +1267,7 @@ class CreateNewProject(object):
                #    except Exception as e:
                #        pass        
 
-               globalFields = ["GlobalID","GlobalGUID"]
+               #globalFields = ["GlobalID","GlobalGUID"]
                #OBS! must remove the curly brackets around the globalId and GlobalGUID attributes
                for i in feature_json['features']:
                   for j in i['attributes']:
@@ -1270,7 +1279,7 @@ class CreateNewProject(object):
                LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[lyr.name],"query",file)
 
                #create file containing objectid,globalid and has_permittee
-               valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
+               
                for i in feature_json['fields']:
                   if i['name'] not in valid_fields:
                      del i
@@ -1295,7 +1304,8 @@ class CreateNewProject(object):
                #      del i
                #      #del feature_json['fields'][i]
                for i in feature_json['features']:
-                  features.append({"attributes":{"OBJECTID":i['attributes']['OBJECTID']}})
+                  if desc.OIDFieldName:
+                    features.append({"attributes":{"OBJECTID":i['attributes'][desc.OIDFieldName]}})
                feature_json['features']=features
                   #for j in i['attributes']:
                   #    if j == 'OBJECTID':
@@ -1317,6 +1327,8 @@ class CreateNewProject(object):
                id = id+1
 
            #now save any tables
+           globalFields=[]
+           valid_fields =[]
            for tbl in operationalTables:
                desc = arcpy.Describe(tbl)
                #featureName=os.path.basename(desc.catalogPath)
@@ -1351,10 +1363,13 @@ class CreateNewProject(object):
                    feature_json['objectIdField']=desc.OIDFieldName
                    feature_json['objectIdFieldName']=desc.OIDFieldName
                    tableObj["oidname"]=desc.OIDFieldName
+                   valid_fields.append(desc.OIDFieldName)
                if desc.hasGlobalID:
                    feature_json['globalIdField'] = desc.globalIDFieldName
                    feature_json['globalIdFieldName']=desc.globalIDFieldName
                    tableObj["globaloidname"]=desc.globalIDFieldName
+                   globalFields.append(desc.globalIDFieldName)
+                   valid_fields.append(desc.globalIDFieldName)
                else:
                    feature_json['globalIdField'] = ""
                tableObj["type"]="table"
@@ -1366,6 +1381,8 @@ class CreateNewProject(object):
                         #if i[1]=="OriginPrimary":
                         if i[1]=="OriginForeign":
                             tableObj["joinField"]=i[0]
+                            globalFields.append(tableObj["joinField"])
+                            valid_fields.append(tableObj["joinField"])
                
                feature_json['indexes']=getIndexes(tbl)
                feature_json['templates'][0]['name']=serviceName
@@ -1437,7 +1454,7 @@ class CreateNewProject(object):
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".query.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[tbl.name],"query",file)
 
-               valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
+               #valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
                for i in feature_json['fields']:
                   if i['name'] not in valid_fields:
                      del i
@@ -1714,7 +1731,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      #remove trailing close paren
      sql = sql[:-1]
      #next line is important when doing lookups
-     sql = sql.replace("OBJECTID integer","OBJECTID int32")
+     sql = sql.replace(oidName +"integer",oidName + " int32")
      sql = sql.replace("primary key ","")
      sql = sql.replace(" not null","")
      #gdb_transaction_time = 'gdb_transaction_time()'
@@ -1807,7 +1824,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      pre=""
      newFields=""
      allfields=""
-     excludes=["OBJECTID","Shape_Length","Shape_Area"]
+     excludes=[oidName,"Shape_Length","Shape_Area"]
      for field in desc.fields:
          if field.name not in excludes:
             newFields = newFields +pre+ "NEW."+field.name
@@ -1816,31 +1833,31 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
             fields.append(field.name)
             #if field.name==depVar + '_calculated':
      
-     sql5.append(('CREATE VIEW '+featureName+'_evw AS SELECT OBJECTID,'+allfields+' FROM '+featureName + " WHERE gdb_to_date BETWEEN (julianday ('9999-12-31 23:59:59') - 0.000000001) AND (julianday ('9999-12-31 23:59:59') + 0.000000001)"))
+     sql5.append(('CREATE VIEW '+featureName+'_evw AS SELECT '+oidName+','+allfields+' FROM '+featureName + " WHERE gdb_to_date BETWEEN (julianday ('9999-12-31 23:59:59') - 0.000000001) AND (julianday ('9999-12-31 23:59:59') + 0.000000001)"))
       #WHERE gdb_to_date BETWEEN (julianday ('9999-12-31 23:59:59') - 0.000000001) AND (julianday ('9999-12-31 23:59:59') + 0.000000001)
      
      sql5.append(('CREATE TRIGGER '+featureName+'_evw_delete INSTEAD OF DELETE ON '+featureName+'_evw BEGIN '
-     'DELETE FROM '+featureName+' WHERE OBJECTID = OLD.OBJECTID AND gdb_from_date BETWEEN ('+gdb_transaction_time  +' - 0.000000001) AND ('+gdb_transaction_time  +' + 0.000000001); '
+     'DELETE FROM '+featureName+' WHERE '+oidName+' = OLD.'+oidName+' AND gdb_from_date BETWEEN ('+gdb_transaction_time  +' - 0.000000001) AND ('+gdb_transaction_time  +' + 0.000000001); '
      'UPDATE OR REPLACE '+featureName+' SET gdb_to_date = '+gdb_transaction_time  +' '
-     'WHERE OBJECTID = OLD.OBJECTID AND gdb_to_date BETWEEN (julianday (\'9999-12-31 23:59:59\') - 0.000000001) AND (julianday (\'9999-12-31 23:59:59\') + 0.000000001); END;'))
+     'WHERE '+oidName+' = OLD.'+oidName+' AND gdb_to_date BETWEEN (julianday (\'9999-12-31 23:59:59\') - 0.000000001) AND (julianday (\'9999-12-31 23:59:59\') + 0.000000001); END;'))
 
      sql5.append(('CREATE TRIGGER '+featureName+'_evw_insert INSTEAD OF INSERT ON '+featureName+'_evw BEGIN '
-     'INSERT INTO '+featureName+' (OBJECTID,'+allfields+',gdb_from_date,gdb_to_date) '
+     'INSERT INTO '+featureName+' ('+oidName+','+allfields+',gdb_from_date,gdb_to_date) '
      'VALUES '+next_row_id+','+newFields+','+gdb_transaction_time  +',julianday (\'9999-12-31 23:59:59\')); END;'))
      
      sql5.append(('CREATE TRIGGER '+featureName+'_evw_update INSTEAD OF UPDATE ON '+featureName+'_evw BEGIN '
      'UPDATE OR IGNORE '+featureName+' SET gdb_to_date = '+gdb_transaction_time  +' '
-     'WHERE OBJECTID = OLD.OBJECTID AND gdb_to_date BETWEEN (julianday (\'9999-12-31 23:59:59\') - 0.000000001) AND (julianday (\'9999-12-31 23:59:59\') + 0.000000001);'
-     'REPLACE INTO '+featureName+' (OBJECTID,'+allfields+',gdb_from_date,gdb_to_date) '
-     'VALUES (NEW.OBJECTID,'+newFields+',(SELECT MAX (gdb_to_date) FROM '+featureName+' '
-     'WHERE OBJECTID = OLD.OBJECTID AND gdb_to_date < julianday (\'9999-12-31 23:59:59\')),julianday (\'9999-12-31 23:59:59\')); END;'))
+     'WHERE '+oidName+' = OLD.'+oidName+' AND gdb_to_date BETWEEN (julianday (\'9999-12-31 23:59:59\') - 0.000000001) AND (julianday (\'9999-12-31 23:59:59\') + 0.000000001);'
+     'REPLACE INTO '+featureName+' ('+oidName+','+allfields+',gdb_from_date,gdb_to_date) '
+     'VALUES (NEW.'+oidName+','+newFields+',(SELECT MAX (gdb_to_date) FROM '+featureName+' '
+     'WHERE '+oidName+' = OLD.'+oidName+' AND gdb_to_date < julianday (\'9999-12-31 23:59:59\')),julianday (\'9999-12-31 23:59:59\')); END;'))
 
-     sql5.append(("insert into " + featureName + "(OBJECTID,"+allfields+") select OBJECTID,"+allfields+" from "+featureName + "_org"))
+     sql5.append(("insert into " + featureName + "("+oidName+","+allfields+") select "+oidName+","+allfields+" from "+featureName + "_org"))
      sql5.append(("drop table "+featureName + "_org"))
      
-     sql5.append(("CREATE INDEX gdb_ct4_"+str(idx)+" ON "+featureName+" (objectid,gdb_from_date) "))
+     sql5.append(("CREATE INDEX gdb_ct4_"+str(idx)+" ON "+featureName+" ("+oidName+",gdb_from_date) "))
      sql5.append(("CREATE INDEX gdb_ct1_"+str(idx)+" ON "+featureName+" (gdb_from_date,gdb_to_date) "))
-     sql5.append(("CREATE INDEX r"+str(idx)+"_gdb_xpk ON "+featureName+" (objectid,gdb_to_date) "))
+     sql5.append(("CREATE INDEX r"+str(idx)+"_gdb_xpk ON "+featureName+" ("+oidName+",gdb_to_date) "))
 
      #if desc.hasOID:
      #              feature_json['objectIdField']=desc.OIDFieldName
@@ -1849,8 +1866,17 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      #feature_json['globalIdFieldName']=desc.globalIDFieldName
      if desc.hasGlobalID:
          sql5.append(("CREATE INDEX UUID"+str(idx)+" ON "+featureName+" ("+desc.globalIDFieldName+") "))
-     if "GlobalGUID" in fields:
-         sql5.append(("CREATE INDEX GDB_"+str(idx)+"_GlobalGUI ON "+featureName+" (GlobalGUID) "))
+     joinField = ""
+     if desc.relationshipClassNames:
+                  for j,rel in enumerate(desc.relationshipClassNames):
+                    relDesc = arcpy.Describe(desc.path +"/"+rel)
+                    for i in relDesc.originClassKeys:
+                        #if i[1]=="OriginPrimary":
+                        if i[1]=="OriginForeign":
+                            joinField=i[0]
+      
+     if joinField in fields:
+         sql5.append(("CREATE INDEX GDB_"+str(idx)+"_" + joinField + " ON "+featureName+" ("+joinField+") "))
 
      #need to add triggers for editing spatial layers
      if svcType!="Table":
@@ -1870,7 +1896,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      #now process any attachment tables
      #OBS! The order of fields in these tables is important!!!
      if arcpy.Exists(inFeaturesGDB+"/"+featureName+"__ATTACH"):
-        excludes=["OBJECTID","Shape_Length","Shape_Area"]
+        
         pre=""
         newFields=""
         allfields=""
@@ -1883,6 +1909,8 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
         #elif field.type == 'GlobalID':
 
         desc = arcpy.Describe(inFeaturesGDB+"/"+featureName+"__ATTACH")
+        oidName = desc.OIDFieldName
+        excludes=[oidName,"Shape_Length","Shape_Area"]
         for field in desc.fields:
            if field.type == 'Guid':
                globalField = field.name
@@ -1892,7 +1920,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
               newallfields = newallfields + pre + field.name
               pre=","
          
-        oidName = desc.OIDFieldName
+        
         idx=idx+1
         lyrtype="esriDTTable"
         queryOption="esriRowsTypeFilter"

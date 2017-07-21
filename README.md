@@ -28,6 +28,8 @@ Example:
 python "Create arcgis project tool.pyt" -user myusername -host myhostname -mxd <fullpath_to_my_project.mxd> -output <full_path_to_output_directory> -spatialite_path <full_path_to_spatialite_executable> -gdal_path <full_path_to_gdal_directory> -pem <full_path_to_pem> -cert <full_path_to_cert>
 ````
 
+Set path in Visual Studio Code terminal
+$env:Path += ";c:\python27\arcgis10.3"
 ## Built With
 
 * [Python](http://python.org) - Python
