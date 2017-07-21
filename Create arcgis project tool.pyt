@@ -470,6 +470,7 @@ class CreateNewProject(object):
         
 
         symbols = getSymbology(mxd)
+
         dataFrames = arcpy.mapping.ListDataFrames(mxd, "*")
         service = {}
         if os.path.exists(baseDestinationPath + "/config.json"):
@@ -708,8 +709,9 @@ class CreateNewProject(object):
 
            relArr=[]
            desc = arcpy.Describe(lyr)
-           if not desc.relationshipClassNames:
-              return rel
+           #if not desc.relationshipClassNames:
+           #    continue
+           #   return rel
            if hasattr(desc, "layer"):
                  featureName=os.path.basename(desc.layer.catalogPath)
                  rootFGDB=desc.layer.catalogPath.replace("\\","/")
@@ -1127,9 +1129,12 @@ class CreateNewProject(object):
 
                #feature_json['drawingInfo']['renderer']['symbol']=getSymbol(lyr)
                #feature_json['relationships']=getRelationships(lyr,id,len(operationalLayers),operationalTables,relationshipObj)
-               feature_json['relationships']=relationshipObj[featureName] #getRelationships(lyr,relationshipObj)
+               try:
+                  feature_json['relationships']=relationshipObj[featureName] #getRelationships(lyr,relationshipObj)
+               except:
+                  pass
 
-               feature_json['drawingInfo']=getSymbol(lyr,symbols[featureName],lyr.name)
+               feature_json['drawingInfo']=getSymbol(lyr,symbols[featureName]["symbols"],lyr.name)
                #set editor tracking fields
                editorTracking={}
                if desc.editorTrackingEnabled:
@@ -1504,27 +1509,68 @@ def getSymbology(mxd):
 
     clearSelections(mxd)
     arcpy.mapping.ConvertToMSD(mxd,msdPath)
-    symbols={}
+    msd_metadata={}
+    msd_metadata["symbols"]={}
 
     zz = zipfile.ZipFile(msdPath)
     EXCLUDED_FILE_NAMES = ["DocumentInfo.xml", "GISProject.xml", "layers/layers.xml"]
     for fileName in (fileName for fileName in zz.namelist() if not fileName in EXCLUDED_FILE_NAMES):
         #printMessage("Opening: " + fileName)
         dom = parse(zz.open(fileName))
-        symb = dom.getElementsByTagName("Symbolizer")
-        if symb.length>0:
-            name=fileName.split(".")[0]
-            rootname = name.split("/")
-            if len(rootname)>1:
-              name=rootname[1]
-            #printMessage("Symbology found for : " + name + " length: " + str(symb.length))
-            symbols[name]=symb
+        #get Name, DisplayName, DatasetType, MinScale, MaxScale
+        #get FeatureTable->DisplayField
+        #FeatureTable->DataConnection->Dataset
+        #child = dom.getElementsByTagName("Name")
+        #displayName = dom.getElementsByTagName("DisplayName")
+        #datasetType = dom.getElementsByTagName("DatasetType")
+        #datasetType = dom.getElementsByTagName("DatasetType")
+        obj = dom.getElementsByTagName("Dataset")
+        name=str(obj[0].childNodes[0].nodeValue)
+        msd_metadata[name]={}
+        #for j in dom.childNodes:
+        #   if j.tagName == "Name":
+        #       name = str(j.childNodes[0].nodeValue)
+        #       msd_metadata["name"]={}
+        for j in dom.childNodes[0].childNodes:   
+           if j.tagName == "DisplayName":
+               msd_metadata[name]["displayName"]=str(j.childNodes[0].nodeValue)
+           elif j.tagName == "Name":
+                msd_metadata[name]["name"]=str(j.childNodes[0].nodeValue) 
+           elif j.tagName == "DatasetType":
+               msd_metadata[name]["datasetType"]=str(j.childNodes[0].nodeValue)    
+           elif j.tagName == "FeatureTable":
+               obj = j.getElementsByTagName("DisplayField")
+               msd_metadata[name]["displayField"]=str(obj[0].childNodes[0].nodeValue)
+               #obj = j.getElementsByTagName("Dataset")
+               #msd_metadata[name]["dataset"]=str(obj[0].childNodes[0].nodeValue)
+             
+
+             #get the next symbol
+             #k = j.getElementsByTagName("Symbol")
+             #for m in k:
+                #type = geomtype[0].getAttribute("xsi:type")=="typens:CIMPolygonSymbol"
+             #   if m.getAttribute("xsi:type")=="typens:CIMPointSymbol":
+             #      obj['symbol'] = getPointSymbol(m)
+             #   elif m.getAttribute("xsi:type")=="typens:CIMPolygonSymbol":
+             #      obj['symbol']=getPolygonSymbol(m)
+
+
+            #symb = dom.getElementsByTagName("Symbolizer")
+           elif j.tagName=="Symbolizer":
+                #if symb.length>0:
+                    #name=fileName.split(".")[0]
+                    #rootname = name.split("/")
+                    #if len(rootname)>1:
+                    #  name=rootname[1]
+                    #printMessage("Symbology found for : " + name + " length: " + str(symb.length))
+               msd_metadata[name]["symbols"]=j
+
             #printMessage("Found: " + str(symb.length))
             #name,lyr = self.loadMsdLayerDom(dom)
             #if name != "":
             #   self[name] = lyr
     del zz
-    return symbols
+    return msd_metadata
 
 def getLayers(opLayers):
   layers=[]
@@ -1549,7 +1595,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
   arcpy.CreateRuntimeContent_management(mxd.filePath,
               replicaDestinationPath + os.sep + serviceName,
               serviceName,"#","#",
-              "NETWORK_DATA;FEATURE_AND_TABULAR_DATA","OPTIMIZE_SIZE","ONLINE","PNG","1","#")
+              "FEATURE_AND_TABULAR_DATA","NON_OPTIMIZE_SIZE","ONLINE","PNG","1","#")
               #OPTIMIZE_SIZE, NON_OPTIMIZE_SIZE
   filenames = next(os.walk(replicaDestinationPath + "/"+serviceName+"/data/"))[2]
   printMessage("Renamed " + replicaDestinationPath + "/"+serviceName+"/data/"+filenames[0]+" to "+ replicaDestinationPath+"/"+serviceName+".geodatabase")
@@ -1665,8 +1711,8 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      sql = sql.replace("OBJECTID integer","OBJECTID int32")
      sql = sql.replace("primary key ","")
      sql = sql.replace(" not null","")
-     gdb_transaction_time = 'gdb_transaction_time()'
-     gdb_transaction_time = "strftime('%s', 'now')"
+     #gdb_transaction_time = 'gdb_transaction_time()'
+     #gdb_transaction_time = "strftime('%s', 'now')"
      gdb_transaction_time = "julianday('now')"
 
      #sql = sql.replace("OBJECTID integer","OBJECTID int32 check(typeof(OBJECTID) = 'integer' and OBJECTID >= -2147483648 and OBJECTID <= 2147483647)")
@@ -1747,8 +1793,8 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
          sql5.append(('UPDATE "GDB_Items" set "Definition"=replace("Definition","<RelationshipClassNames xsi:type=\'typens:Names\'></RelationshipClassNames>",\'<RelationshipClassNames xsi:type="typens:Names">'+rels+'</RelationshipClassNames>\') where "Name"="main.' +featureName+'"'  ) )
 
 
-     next_row_id='Next_RowID (NULL,\''+featureName+'\')'
-     next_row_id='(select max(OBJECTID)+1 from \''+featureName+'\')'
+     #next_row_id='Next_RowID (NULL,\''+featureName+'\')'
+     #next_row_id='(select max(OBJECTID)+1 from \''+featureName+'\')'
      next_row_id='(coalesce (NEW.OBJECTID,(select max(OBJECTID)+1 from \''+featureName+'\'),1)'
 
      fields=[]
@@ -1789,7 +1835,14 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      sql5.append(("CREATE INDEX gdb_ct4_"+str(idx)+" ON "+featureName+" (objectid,gdb_from_date) "))
      sql5.append(("CREATE INDEX gdb_ct1_"+str(idx)+" ON "+featureName+" (gdb_from_date,gdb_to_date) "))
      sql5.append(("CREATE INDEX r"+str(idx)+"_gdb_xpk ON "+featureName+" (objectid,gdb_to_date) "))
-     sql5.append(("CREATE INDEX UUID"+str(idx)+" ON "+featureName+" (GlobalID) "))
+
+     #if desc.hasOID:
+     #              feature_json['objectIdField']=desc.OIDFieldName
+     #              feature_json['objectIdFieldName']=desc.OIDFieldName
+     #feature_json['globalIdField'] = desc.globalIDFieldName
+     #feature_json['globalIdFieldName']=desc.globalIDFieldName
+     if desc.hasGlobalID:
+         sql5.append(("CREATE INDEX UUID"+str(idx)+" ON "+featureName+" ("+desc.globalIDFieldName+") "))
      if "GlobalGUID" in fields:
          sql5.append(("CREATE INDEX GDB_"+str(idx)+"_GlobalGUI ON "+featureName+" (GlobalGUID) "))
 
@@ -2059,12 +2112,12 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
        f.close()
   #printMessage("Running \"" + toolkitPath+"/spatialite/spatialite.exe\" \"" + newFullReplicaDB + "\"  < " + name)
   #printMessage("Running \"" + spatialite_path+ "\" \"" + newFullReplicaDB + "\"  < \"" + name + "\"")
-
+  cmd = "\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>\"" + replicaDestinationPath + os.sep + serviceName + ".log\" 2>&1"
   try:
      #os.system("\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>" + replicaDestinationPath + os.sep + serviceName + ".log 2>&1")
-     result = subprocess.check_output("\"" + spatialite_path+"\"  \"" + newFullReplicaDB + "\"  < \"" + name + "\" >>" + replicaDestinationPath + os.sep + serviceName + ".log 2>&1", shell=True, stderr=subprocess.STDOUT)
-  except:
-     printMessage("Unable to run sql commands")
+     result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  except Exception, e:
+     printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
   
 #create a replica sqlite database for a single layer/table
 def createSingleReplica(templatePath,df,lyr,replicaDestinationPath,toolkitPath,feature_json,serverName,serviceName,username,id):
@@ -2124,11 +2177,12 @@ def createSingleReplica(templatePath,df,lyr,replicaDestinationPath,toolkitPath,f
 
           f.close()
      #printMessage("Running \"" + spatialite_path + "\" \""+ newReplicaDB + "\"  < \"" + name + "\"")
+     cmd="\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1"
      try:
         #os.system("\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1")
-        result = subprocess.check_output("\"" + spatialite_path + "\" \"" + newReplicaDB + "\"  < \"" + name + "\" >> \"" + replicaDestinationPath + os.sep + lyr.name + ".log\" 2>&1", shell=True, stderr=subprocess.STDOUT)
-     except:
-        printMessage("Unable to run sql commands")
+        result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+     except Exception, e:
+        printMessage("Unable to run sql commands:  "+e)
 
 
 def saveReplica(tmpMxd,replicaPath,lyr,desc):
@@ -2452,7 +2506,7 @@ def getOperationalLayers(opLayers,serverName,serviceName,symbols):
          "title": lyr.name,
          "url": "http://"+serverName + "/arcgis/rest/services/"+serviceName+"/FeatureServer/"+str(id),
          "popupInfo": getPopupInfo(lyr),
-         "layerDefinition":{"drawingInfo":getSymbol(lyr,symbols[featureName],lyr.name)},
+         "layerDefinition":{"drawingInfo":getSymbol(lyr,symbols[featureName]["symbols"],lyr.name)},
          "opacity": (100.0 - float(lyr.transparency)) / 100.0,
          "capabilities": "Create,Delete,Query,Update,Editing,Sync",
          "visibility": lyr.visible
@@ -3149,7 +3203,7 @@ def getSymbol(lyr,sym,name):
      "labelingInfo": None
    }
 
-   if sym[0].getAttribute("xsi:type") == "typens:CIMUniqueValueSymbolizer":
+   if sym.getAttribute("xsi:type") == "typens:CIMUniqueValueSymbolizer":
          drawingInfo['renderer']['type']="uniqueValue"
          #drawingInfo['renderer']['uniqueValueInfos']=[]
    else:
@@ -3159,7 +3213,7 @@ def getSymbol(lyr,sym,name):
 
    #renderer->uniqueValueInfos
    #printMessage("******Creating symbology for " + name + "*******")
-   for i in sym[0].childNodes:
+   for i in sym.childNodes:
       #printMessage(i.tagName + ": " + i.getAttribute("xsi:type"))
       #printMessage(i)
       #printMessage(str(i.childNodes.length))
@@ -3212,23 +3266,23 @@ def saveSqliteToPG(tables,sqliteDb,pg):
        try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-       except:
-           printMessage("Unable to run sql commands: " + cmd)
+       except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
     
     cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table services alter column json type jsonb using json::jsonb\""
     #printMessage("Running " + cmd)
     try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-    except:
-           printMessage("Unable to run sql commands: " + cmd)
+    except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
     cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table catalog alter column json type jsonb using json::jsonb\""
     #printMessage("Running " + cmd)
     try:
            #os.system(cmd)
            result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-    except:
-           printMessage("Unable to run sql commands: " + cmd)
+    except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
 
 def saveSqliteServiceTablesToPG(serviceDb,pg):
     global ogr2ogr_path
@@ -3250,8 +3304,8 @@ def saveSqliteServiceTablesToPG(serviceDb,pg):
         try:
               #os.system(cmd)
               result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-        except:
-              printMessage("Unable to run sql commands: " + cmd)
+        except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
     os.unsetenv("PGCLIENTENCODING")
 
 def saveToPg(lyr,pg):
@@ -3273,8 +3327,8 @@ def saveToPg(lyr,pg):
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-   except:
-        printMessage("Unable to run sql commands")
+   except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
 
 def saveAttachTableToPg(fgdb,lyr,suffix,pg):
    global ogr2ogr_path
@@ -3296,16 +3350,16 @@ def saveAttachTableToPg(fgdb,lyr,suffix,pg):
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-   except:
-        printMessage("Unable to run sql commands")
+   except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
    #find the globalid
    cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table \\\""+lyr+suffix+"\\\" rename \\\"GlobalID\\\" to \\\"GLOBALID\\\""
    #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-   except:
-        printMessage("Unable to run sql commands: " + cmd)
+   except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
 
    #need to rename grazing_inspections_GlobalID fields to REL_GLOBALID
    cmd = "\""+ogrinfo_path+"\"  PG:\"" + pg + "\"  -sql \"alter table \\\""+lyr+suffix+"\\\" rename \\\""+lyr + "_GlobalID\\\" to \\\"REL_GLOBALID\\\""
@@ -3313,8 +3367,8 @@ def saveAttachTableToPg(fgdb,lyr,suffix,pg):
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-   except:
-        printMessage("Unable to run sql commands: " + cmd)
+   except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
 
 def saveToSqlite(lyr,sqliteDb):
    global ogr2ogr_path
@@ -3334,8 +3388,8 @@ def saveToSqlite(lyr,sqliteDb):
    try:
         #os.system(cmd)
         result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-   except:
-        printMessage("Unable to run sql commands")
+   except Exception, e:
+           printMessage("Unable to run sql commands:  "+cmd + "\n" + e.output)
 
 def saveToSqliteUsingArcpy(lyr,sqliteDb):
    desc = arcpy.Describe(lyr)
