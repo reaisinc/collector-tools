@@ -522,8 +522,11 @@ class CreateNewProject(object):
         if fullname=="":
            printMessage("Author missing in File->Map Document Properties")
            return
-        first_name = fullname.split(' ')[0]
-        last_name = fullname.split(' ')[1]
+        fullname_split = fullname.split(' ')
+        first_name = fullname_split[0]
+        last_name=""
+        if len(fullname_split)>1:
+            last_name = fullname_split[1]
         email_address = first_name + '.' + last_name + '@' + serverName
         if not username:
            username=fullname.lower().replace(" ","")
@@ -628,6 +631,9 @@ class CreateNewProject(object):
            if serviceName=='Layers':
               printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
               return
+           #must set dataframe projection to web mercator
+           outCS = arcpy.SpatialReference(3785) #the code for WGS84 Web Mercator
+           dataFrame.spatialReference = outCS
 
            #else:
            #   dataFrame = dataFrame #mxd.activeDataFrame
