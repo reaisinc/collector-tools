@@ -481,7 +481,7 @@ class CreateNewProject(object):
         symbols = getSymbology(mxd)
 
         dataFrames = arcpy.mapping.ListDataFrames(mxd, "*")
-        service = {}
+        #service = {}
         project = None
         config = None
         if os.path.exists(baseDestinationPath + "/config.json"):
