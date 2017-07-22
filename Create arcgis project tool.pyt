@@ -307,8 +307,16 @@ class CreateNewProject(object):
         #    sqliteDb = sqliteDb + ".sqlite"
         #put file in the catalogs folder
         sqliteDb = os.path.join(baseDestinationPath,"catalogs","collectorDb.sqlite") #.replace("\\","/")
-        if os.path.exists(sqliteDb):
-            os.remove(sqliteDb)
+        #if os.path.exists(sqliteDb):
+        #    try:
+        #       os.remove(sqliteDb)
+        #    except Exception as e:
+        #       printMessage("Unable to delete collectoDb.sqlite file.  Is it currently open in another application or is the collector-server running?")
+        #       printMessage(e)
+        #       return
+        #       #os._exit(1)
+
+
         #locate spatialite, ogr2ogr, and ogrinfo executables
         #if sys.platform== 'win32':
         gdal_path=gdal_path.replace("/","\\")
@@ -428,6 +436,7 @@ class CreateNewProject(object):
             #check to see if service already exists.  If so, remove it so it can be overwritten
             if os.path.exists(serviceDestinationPath):
                try:
+                  printMessage("Removing "+serviceDestinationPath+" directory")
                   shutil.rmtree(serviceDestinationPath)
                except Exception as e:
                   printMessage("Unable to remove destination path")
@@ -468,34 +477,61 @@ class CreateNewProject(object):
         printMessage("Mapfile path: " +mapfileDestinationPath)
         printMessage("****************************************************************")
         printMessage("Log output")
-        
 
         symbols = getSymbology(mxd)
 
         dataFrames = arcpy.mapping.ListDataFrames(mxd, "*")
         service = {}
+        project = None
+        config = None
         if os.path.exists(baseDestinationPath + "/config.json"):
             config=openJSON(baseDestinationPath + "/config.json")
             try:
-               config["services"][serviceName]=service
+                for proj in config["projects"]:
+                  if proj == serviceName:
+                      printMessage("Found existing project for " + proj["name"] + ":  updating")
+                      project = proj
+                      break
             except:
-               printMessage("Service already exists: " + serviceName)
-               service = config["services"][serviceName]
+                pass
+
+            if not project:
+                project = {}
+                config["projects"][serviceName]=project
+                #project["name"]=serviceName
+                #config["projects"].append(project)
+                #service = {}
+                #project["services"]={}
+                #project[serviceName]=service
+            else:
+                try:
+                    project = config["projects"][serviceName]
+                except Exception as e:
+                    project = {}
+                    #project["services"]={}
+                    config["projects"][serviceName] =project
+
+            #try:
+            #   config["project"]["services"][serviceName]=service
+            #except:
+            #   printMessage("Service already exists: " + serviceName)
             #config["services"][serviceName]["layers"]={}
             #config["services"][serviceName]["mxd"]=mxd.filePath 
-            service["layers"]={}
-            config["mxd"]=mxd.filePath
+            project["layers"]={}
+            project["mxd"]=mxd.filePath
         else:
-           config={}
-           config["services"]={}
-           config["services"][serviceName]=service
-           #service["name"]=serviceName
-           #config["services"]=[service]
-           service["layers"]={}
-           config["mxd"]=mxd.filePath
+            config={}
+            config["projects"]={}
+            project = {}
+            #project["services"]={}
+            config["projects"][serviceName]=project
+            #service["name"]=serviceName
+            #config["services"]=[service]
+            project["layers"]={}
+            project["mxd"]=mxd.filePath
 
-           #config["services"][serviceName]={"layers":{}}
-           #config["services"][serviceName]["mxd"]=mxd.filePath
+            #config["services"][serviceName]={"layers":{}}
+            #config["services"][serviceName]["mxd"]=mxd.filePath
 
         config["hostname"]=serverName
         config["username"]=username
@@ -504,7 +540,7 @@ class CreateNewProject(object):
         config["httpPort"]="80"
         config["httpsPort"]="443"
 
-        config["dataPath"]=baseDestinationPath
+        project["dataPath"]=baseDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
 
         #config["services"][serviceName]["mxd"]=mxd.filePath
@@ -514,8 +550,8 @@ class CreateNewProject(object):
         #config["services"][serviceName]["rootPath"]=baseDestinationPath
 
         config["sqliteDb"]=sqliteDb
-        config["pg"]=pg
-        config["dataSource"]="sqlite"
+        project["pg"]=pg
+        project["dataSource"]="sqlite"
         
         #config["services"][serviceName]["layers"]={}
 
@@ -565,7 +601,6 @@ class CreateNewProject(object):
            portals_self_json['user']['username']=username
            file = saveJSON(baseDestinationPath + "/portals.self.json",portals_self_json)
            LoadCatalog(sqliteDb,"portals", "self",file)
-
 
         if not os.path.exists(baseDestinationPath + "/community.users.json"):
            community_users_json=openJSON(templatePath + "/community.users.json")
@@ -633,8 +668,10 @@ class CreateNewProject(object):
               printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
               return
            #must set dataframe projection to web mercator
-           outCS = arcpy.SpatialReference(3785) #the code for WGS84 Web Mercator
-           dataFrame.spatialReference = outCS
+           #outCS = arcpy.SpatialReference(3785) #the code for WGS84 Web Mercator
+           outCS = arcpy.SpatialReference(3857) #the code for WGS84 Web Mercator
+
+           #dataFrame.spatialReference = outCS
 
            #else:
            #   dataFrame = dataFrame #mxd.activeDataFrame
@@ -650,6 +687,15 @@ class CreateNewProject(object):
               # Exit if the current layer is not a service layer.
               if lyr.isServiceLayer or lyr.supports("SERVICEPROPERTIES"):  # or not lyr.visible
                 continue
+              #make sure layer is web mercator
+              cur_projection = arcpy.Describe(lyr).spatialReference
+              if cur_projection.name != outCS.name:
+                  printMessage(lyr.name + " is NOT in Web Mercator projection.  Skipping...")
+                  printMessage(cur_projection.name)
+                  printMessage(outCS.name)
+
+
+                  continue
               #lyr.visible=True
               #opLayer = {
               #    "id": lyr.name,
@@ -817,7 +863,7 @@ class CreateNewProject(object):
            #printMessage(json.dumps(relationshipObj, indent=4, sort_keys=True))
            #print(destIds)
            #config["services"][serviceName]["relationships"]=relations
-           service["relationships"]=relations
+           project["relationships"]=relations
            #return
 
 
@@ -1020,6 +1066,7 @@ class CreateNewProject(object):
            featureserver_json['fullExtent']['ymax']=dataFrame.extent.YMax
            featureserver_json['layers'] = getLayers(operationalLayers)
            featureserver_json['tables']=operationalTablesObj
+           
            file=saveJSON(servicesDestinationPath + "/FeatureServer.json",featureserver_json)
            LoadService(sqliteDb,serviceName,"FeatureServer", -1,"",file)
 
@@ -1115,7 +1162,9 @@ class CreateNewProject(object):
                    feature_json['globalIdField'] = desc.globalIDFieldName
                    feature_json['globalIdFieldName']=desc.globalIDFieldName
                else:
-                   feature_json['globalIdField'] = ""
+                   del feature_json['globalIdField']
+                   #del feature_json['globalIdFieldName']
+
                feature_json['indexes']=getIndexes(lyr)
                feature_json['minScale']=lyr.minScale
                feature_json['maxScale']=lyr.maxScale
@@ -1257,6 +1306,9 @@ class CreateNewProject(object):
                    layerObj["globaloidname"]=desc.globalIDFieldName
                    globalFields.append(desc.globalIDFieldName)
                    valid_fields.append(desc.globalIDFieldName)
+               #else:
+                   #del feature_json['globalIdField']
+                   #del feature_json['globalIdFieldName']
 
                layerObj["type"]="layer"
                #remove the defaultValue is it is NEWID() WITH VALUES
@@ -1320,10 +1372,13 @@ class CreateNewProject(object):
                layerObj["itemId"]= lyr.name.replace(" ","_")+str(layerIds[lyr.name])
                if desc.editorTrackingEnabled:
                   #save to config too for easy access
-                  layerObj["editFieldsInfo"]=feature_json['editFieldsInfo']
+                  try:
+                    layerObj["editFieldsInfo"]=feature_json['editFieldsInfo']
+                  except Exception as e:
+                    pass
 
                #config["services"][serviceName]["layers"][str(layerIds[lyr.name])]=layerObj
-               service["layers"][str(layerIds[lyr.name])]=layerObj
+               project["layers"][str(layerIds[lyr.name])]=layerObj
                id = id+1
 
            #now save any tables
@@ -1371,7 +1426,9 @@ class CreateNewProject(object):
                    globalFields.append(desc.globalIDFieldName)
                    valid_fields.append(desc.globalIDFieldName)
                else:
-                   feature_json['globalIdField'] = ""
+                   del feature_json['globalIdField']
+                   #del feature_json['globalIdFieldName']
+                   
                tableObj["type"]="table"
                tableObj["id"]=layerIds[tbl.name]
                if desc.relationshipClassNames:
@@ -1424,7 +1481,7 @@ class CreateNewProject(object):
                tableObj["itemId"]= tbl.name.replace(" ","_")+str(layerIds[tbl.name])
                
                #config["services"][serviceName]["layers"][str(layerIds[tbl.name])]=tableObj
-               service["layers"][str(layerIds[tbl.name])]=tableObj
+               project["layers"][str(layerIds[tbl.name])]=tableObj
 
                #fields = copy.deepcopy(feature_json['fields'])
                fSet = arcpy.RecordSet()
@@ -1896,7 +1953,6 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      #now process any attachment tables
      #OBS! The order of fields in these tables is important!!!
      if arcpy.Exists(inFeaturesGDB+"/"+featureName+"__ATTACH"):
-        
         pre=""
         newFields=""
         allfields=""
@@ -2007,6 +2063,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
         #just hardcode the fields
         newallfields = "ATTACHMENTID,GLOBALID,REL_GLOBALID,CONTENT_TYPE,ATT_NAME,DATA_SIZE,DATA"
         newFields = "NEW.GLOBALID,NEW.REL_GLOBALID,NEW.CONTENT_TYPE,NEW.ATT_NAME,NEW.DATA_SIZE,NEW.DATA"
+        allfields = "ATTACHMENTID,GLOBALID,REL_GLOBALID,CONTENT_TYPE,ATT_NAME,DATA_SIZE,DATA"
         #,julianday('now'),julianday ('9999-12-31 23:59:59')
    
         allfields = allfields.replace("REL_OBJECTID,", "")
@@ -2044,7 +2101,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
         #just create the dang table
         sql5.append(("CREATE TABLE "+featureName+"__ATTACH ( ATTACHMENTID int32 constraint attachementidcheck check(typeof(ATTACHMENTID) = 'integer' and ATTACHMENTID >= -2147483648 and ATTACHMENTID <= 2147483647) not null,        GLOBALID uuidtext constraint globalidcheck check(typeof(GLOBALID) = 'text' and length(GLOBALID) = 38), REL_GLOBALID uuidtext constraint relglobalidcheck check((typeof(REL_GLOBALID) = 'text' or typeof(REL_GLOBALID) = 'null') and length(REL_GLOBALID) = 38),         CONTENT_TYPE text(150) constraint contexttypecheck  check(typeof(CONTENT_TYPE) = 'text' and not length(CONTENT_TYPE) > 150), ATT_NAME text(250) constraint attnamecheck  check(typeof(ATT_NAME) = 'text' and not length(ATT_NAME) > 250), DATA_SIZE int32 constraint datasizecheck check(typeof(DATA_SIZE) = 'integer' and DATA_SIZE >= -2147483648 and DATA_SIZE <= 2147483647), DATA blob constraint datablobcheck check(typeof(DATA) = 'blob' or typeof(DATA) = 'null'),  gdb_archive_oid integer primary key not null, gdb_from_date realdate constraint gdbfromdatecheck check(typeof(gdb_from_date) = 'real' and gdb_from_date >= 0.0) default (julianday('now')), gdb_to_date realdate constraint gdbtodatecheck check(typeof(gdb_to_date) = 'real' and gdb_to_date >= 0.0) default (julianday ('9999-12-31 23:59:59')))"))
 
-        sql5.append(("insert into " + featureName + "__ATTACH("+newallfields+") select "+allfields+" from "+featureName + "__ATTACH_org"))
+        #sql5.append(("insert into " + featureName + "__ATTACH("+newallfields+") select "+allfields+" from "+featureName + "__ATTACH_org"))
         
         sql5.append(("drop table "+featureName + "__ATTACH_org")) 
 
@@ -3413,11 +3470,13 @@ def saveToSqlite(lyr,sqliteDb):
    os.putenv("PATH",(gdal_path + os.sep + "bin").replace("/","\\"))
    #printMessage(os.environ['PATH'])
     
+   #drop table if it exists
+   
    desc = arcpy.Describe(lyr)
    if hasattr(desc,"shapeType"):
-       cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -append"
+       cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -overwrite"
    else:
-       cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+ gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -nlt None -append"
+       cmd = "\""+ogr2ogr_path+"\" -lco LAUNDER=NO -lco FID=OBJECTID -preserve_fid -forceNullable --config OGR_SQLITE_SYNCHRONOUS OFF -gt 65536 --config GDAL_DATA \""+ gdal_data_path + "\" -f \"SQLITE\" \"" + sqliteDb + "\"  \"" + desc.path + "\" " + desc.name.replace(".shp","") + " -nlt None -overwrite"
    #printMessage("Running " + cmd)
    try:
         #os.system(cmd)
