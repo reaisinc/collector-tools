@@ -228,9 +228,20 @@ class CreateNewProject(object):
         except Exception as e:
            pass        
 
+        datasrc = arcpy.Parameter(
+            displayName="Enter default database",
+            name="datasrc",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input",
+            multiValue=False)
+        datasrc.filter.type = "ValueList"
+        datasrc.filter.list = ["File","Sqlite","Postgresql"]
+        datasrc.value = "Sqlite"
+
         #param0.filter.type = "ValueList"
         #param0.filter.list = ["Street","Aerial","Terrain","Topographic"]
-        parameters = [servername,username,outputfolder,pg,spatialite_path,gdal_path,cert,pem]
+        parameters = [servername,username,outputfolder,pg,spatialite_path,gdal_path,cert,pem,datasrc]
         #username,projecttitle,projectname,tags,summary,description,
         return parameters
 
@@ -265,6 +276,7 @@ class CreateNewProject(object):
         gdal_path=parameters[5].valueAsText
         cert = parameters[6].valueAsText
         pem = parameters[7].valueAsText
+        datasrc = parameters[8].valueAsText
         #toolkitPath+"/spatialite/spatialite.exe
         created_ts=int(time.time()*1000)
         sep = "/"
@@ -295,6 +307,8 @@ class CreateNewProject(object):
                  cert=vals[7]
               if len(vals)>8:
                  pem=vals[8]
+              if len(vals)>9:
+                 datasrc=vals[9]
 
               mxdName=vals[0].replace("\\","/")
               mxd = arcpy.mapping.MapDocument(mxdName)
@@ -304,6 +318,14 @@ class CreateNewProject(object):
            printMessage("Still Unable to open map document.  Make sure background processing is unchecked in the geoprocessing options")
            return
 
+        if datasrc == "File":
+            datasrc = "file"
+        elif datasrc=="Sqlite":
+            datasrc = "sqlite"
+        else:
+            datasrc="pgsql"
+
+        
         #if sqliteDb.find(".sqlite") == -1:
         #    sqliteDb = sqliteDb + ".sqlite"
         #put file in the catalogs folder
@@ -541,6 +563,7 @@ class CreateNewProject(object):
         config["httpPort"]="80"
         config["httpsPort"]="443"
         config["arcMapVersion"]=  arcpy.GetInstallInfo()['Version']
+        config["defaultDatabase"]=datasrc
 
         project["dataPath"]=baseDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
@@ -1597,7 +1620,7 @@ def getSymbology(mxd):
     zz = zipfile.ZipFile(msdPath)
     EXCLUDED_FILE_NAMES = ["DocumentInfo.xml", "GISProject.xml", "layers/layers.xml"]
     for fileName in (fileName for fileName in zz.namelist() if not fileName in EXCLUDED_FILE_NAMES):
-        #printMessage("Opening: " + fileName)
+        printMessage("Opening: " + fileName)
         dom = parse(zz.open(fileName))
         #get Name, DisplayName, DatasetType, MinScale, MaxScale
         #get FeatureTable->DisplayField
@@ -1607,7 +1630,11 @@ def getSymbology(mxd):
         #datasetType = dom.getElementsByTagName("DatasetType")
         #datasetType = dom.getElementsByTagName("DatasetType")
         obj = dom.getElementsByTagName("Dataset")
-        name=str(obj[0].childNodes[0].nodeValue)
+        if len(obj) > 0:
+            name=str(obj[0].childNodes[0].nodeValue)
+        else:
+            name=fileName.split(".")[0]+"_root"
+
         msd_metadata[name]={}
         #for j in dom.childNodes:
         #   if j.tagName == "Name":
