@@ -772,8 +772,8 @@ class CreateNewProject(object):
                  featureName=os.path.basename(desc.catalogPath)
                  rootFGDB=os.path.dirname(desc.catalogPath).replace("\\","/")
 
-           config["fgdb"]=rootFGDB
-           config["replica"]=replicaDestinationPath+"/"+serviceName+".geodatabase"
+           project["fgdb"]=rootFGDB
+           project["replica"]=replicaDestinationPath+"/"+serviceName+".geodatabase"
 
            #config["services"][serviceName]["fgdb"]=rootFGDB
            #config["services"][serviceName]["replica"]=replicaDestinationPath+"/"+serviceName+".geodatabase"
