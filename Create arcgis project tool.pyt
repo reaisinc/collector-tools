@@ -268,6 +268,7 @@ class CreateNewProject(object):
         #toolkitPath+"/spatialite/spatialite.exe
         created_ts=int(time.time()*1000)
         sep = "/"
+
         printMessage("****************************************************************")
         printMessage("Parameters")
 
@@ -539,6 +540,7 @@ class CreateNewProject(object):
         config["certPath"]=cert
         config["httpPort"]="80"
         config["httpsPort"]="443"
+        config["arcMapVersion"]=  arcpy.GetInstallInfo()['Version']
 
         project["dataPath"]=baseDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
