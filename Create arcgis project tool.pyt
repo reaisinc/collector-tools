@@ -146,6 +146,17 @@ class CreateNewProject(object):
         #    direction="Input",
         #    multiValue=False)
 
+        datasrc = arcpy.Parameter(
+            displayName="Enter default database",
+            name="datasrc",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input",
+            multiValue=False)
+        datasrc.filter.type = "ValueList"
+        datasrc.filter.list = ["File","Sqlite","Postgresql"]
+        datasrc.value = "Sqlite"
+
         outputfolder = arcpy.Parameter(
             displayName="Enter output folder",
             name="outputfolder",
@@ -228,20 +239,10 @@ class CreateNewProject(object):
         except Exception as e:
            pass        
 
-        datasrc = arcpy.Parameter(
-            displayName="Enter default database",
-            name="datasrc",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input",
-            multiValue=False)
-        datasrc.filter.type = "ValueList"
-        datasrc.filter.list = ["File","Sqlite","Postgresql"]
-        datasrc.value = "Sqlite"
 
         #param0.filter.type = "ValueList"
         #param0.filter.list = ["Street","Aerial","Terrain","Topographic"]
-        parameters = [servername,username,outputfolder,pg,spatialite_path,gdal_path,cert,pem,datasrc]
+        parameters = [servername,username,datasrc,outputfolder,pg,spatialite_path,gdal_path,cert,pem]
         #username,projecttitle,projectname,tags,summary,description,
         return parameters
 
@@ -269,14 +270,16 @@ class CreateNewProject(object):
         
         serverName = parameters[0].valueAsText
         username = parameters[1].valueAsText        
-        baseDestinationPath = parameters[2].valueAsText
+        datasrc = parameters[2].valueAsText
+        baseDestinationPath = parameters[3].valueAsText
         #sqliteDb = parameters[3].valueAsText
-        pg  = parameters[3].valueAsText
-        spatialite_path=parameters[4].valueAsText
-        gdal_path=parameters[5].valueAsText
-        cert = parameters[6].valueAsText
-        pem = parameters[7].valueAsText
-        datasrc = parameters[8].valueAsText
+        
+        pg  = parameters[4].valueAsText
+        spatialite_path=parameters[5].valueAsText
+        gdal_path=parameters[6].valueAsText
+        cert = parameters[7].valueAsText
+        pem = parameters[8].valueAsText
+        
         #toolkitPath+"/spatialite/spatialite.exe
         created_ts=int(time.time()*1000)
         sep = "/"
@@ -294,21 +297,22 @@ class CreateNewProject(object):
               if len(vals)>2:
                  username= vals[2]
               if len(vals)>3:
-                 baseDestinationPath=vals[3].replace("\\","/")
+                 datasrc=vals[3]
+
+              if len(vals)>4:
+                 baseDestinationPath=vals[4].replace("\\","/")
               #if len(vals)>4:
               #   sqliteDb=vals[4]
-              if len(vals)>4:
-                 pg=vals[4]
               if len(vals)>5:
-                 spatialite_path=vals[5]
+                 pg=vals[5]
               if len(vals)>6:
-                 gdal_path=vals[6]
+                 spatialite_path=vals[6]
               if len(vals)>7:
-                 cert=vals[7]
+                 gdal_path=vals[7]
               if len(vals)>8:
-                 pem=vals[8]
+                 cert=vals[8]
               if len(vals)>9:
-                 datasrc=vals[9]
+                 pem=vals[9]
 
               mxdName=vals[0].replace("\\","/")
               mxd = arcpy.mapping.MapDocument(mxdName)
@@ -322,8 +326,10 @@ class CreateNewProject(object):
             datasrc = "file"
         elif datasrc=="Sqlite":
             datasrc = "sqlite"
+        elif datasrc=="Postgresql":
+            datasrc = "pgsql"
         else:
-            datasrc="pgsql"
+            datasrc="sqlite"
 
         
         #if sqliteDb.find(".sqlite") == -1:
@@ -409,6 +415,7 @@ class CreateNewProject(object):
         printMessage("Server name: " +serverName)
         printMessage("User name: " + username)
         printMessage("MXD Path: " + mxd.filePath)
+        printMessage("Default data source: " + datasrc)
         printMessage("Destination path: " + baseDestinationPath)
         printMessage("Sqlite path: " + sqliteDb)
         printMessage("Spatialite path: " + spatialite_path)
@@ -417,6 +424,7 @@ class CreateNewProject(object):
         printMessage("gdal-data path: " + gdal_data_path)
         printMessage("cert path: " + cert)
         printMessage("pem path: " + pem)
+        
 
         if pg:
             printMessage("Postgresql connection: " + pg)
@@ -431,6 +439,8 @@ class CreateNewProject(object):
         Config.set("settings","gdal_path",gdal_path)
         Config.set("settings","cert",cert)
         Config.set("settings","pem",pem)
+        Config.set("settings","datasrc",datasrc)
+
         if pg:
             Config.set("settings","pg",pg)
         else:
@@ -565,7 +575,7 @@ class CreateNewProject(object):
         config["arcMapVersion"]=  arcpy.GetInstallInfo()['Version']
         config["defaultDatabase"]=datasrc
 
-        project["dataPath"]=baseDestinationPath
+        config["dataPath"]=baseDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
 
         #config["services"][serviceName]["mxd"]=mxd.filePath
@@ -575,8 +585,8 @@ class CreateNewProject(object):
         #config["services"][serviceName]["rootPath"]=baseDestinationPath
 
         config["sqliteDb"]=sqliteDb
-        project["pg"]=pg
-        project["dataSource"]="sqlite"
+        config["pg"]=pg
+        #project["dataSource"]="sqlite"
         
         #config["services"][serviceName]["layers"]={}
 
@@ -3582,6 +3592,7 @@ def LoadService(sqliteDb,service,name,  layerid,dtype,file):
 def printUsage():
     print "Usage:\n"
     print "python \"Create arcgis project tool.pyt\" -user myusername -host myhostname -mxd <fullpath_to_my_project.mxd> -output <full_path_to_output_directory> -spatialite_path <full_path_to_spatialite_executable> -gdal_path <full_path_to_gdal_directory> -pem <full_path_to_pem> -cert <full_path_to_cert>"
+    print "Note:  the output folder can contain only one type of database (file, Sqlite, or Postgresql)"
     
 def printMessage(str):
   logger.info(str)
@@ -3609,6 +3620,7 @@ def main():
     gdal_path="../arcrestgo/gdal/"
     cert=""
     pem=""
+    datasrc=""
 
     #load settings
     Config.read(os.getcwd()+"/settings.ini")
@@ -3665,6 +3677,11 @@ def main():
     except Exception as e:
         pass      
 
+    try:
+        datasrc= Config.get("settings","datasrc")
+    except Exception as e:
+        pass      
+
     if len(sys.argv)==1 and not mxd and not host and not user and not output and not spatialite_path and not gdal_path:
         printUsage()
         return
@@ -3693,11 +3710,13 @@ def main():
             cert = sys.argv[i+1]
         elif sys.argv[i]=="-pem":
             pem = sys.argv[i+1]
+        elif sys.argv[i]=="-src":
+            datasrc = sys.argv[i+1]
         elif sys.argv[i]=="-h":
             printUsage()
             return
 
-    tool.execute(tool.getParameterInfo(),[mxd,host,user,output,pg,spatialite_path,gdal_path,cert,pem])
+    tool.execute(tool.getParameterInfo(),[mxd,host,user,output,pg,spatialite_path,gdal_path,cert,pem,datasrc])
     
 if __name__ == '__main__':
     if sys.executable.find("python.exe") != -1:
