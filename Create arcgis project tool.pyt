@@ -683,7 +683,11 @@ class CreateNewProject(object):
         #os.system("copy "+ templatePath + "/community.groups.json " + servicesDestinationPath + "/community.groups.json")
         #result = 0
 
-        feature_services={"currentVersion":10.3,"folders":[],"services":[]}
+        if not os.path.exists(baseDestinationPath+"/FeatureServer.json"):
+            feature_services={"currentVersion":arcpy.GetInstallInfo()['Version'],"folders":[],"services":[]}
+        else:
+            feature_services=openJSON(baseDestinationPath + "/FeatureServer.json")
+
         #if not os.path.exists(servicesDestinationPath+"/FeatureServer.json"):
         #     saveJSON(servicesDestinationPath + "/FeatureServer.json",response)
         #else:
@@ -702,6 +706,14 @@ class CreateNewProject(object):
            if serviceName=='Layers':
               printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
               return
+
+           #replace the service name if it exists
+           for idx, val in enumerate(feature_services["folders"]):
+               if val == serviceName:
+                  del feature_services["folders"][idx]
+            
+           #flush the services table for this service
+           ClearService(sqliteDb,serviceName)
            #must set dataframe projection to web mercator
            #outCS = arcpy.SpatialReference(3785) #the code for WGS84 Web Mercator
            outCS = arcpy.SpatialReference(3857) #the code for WGS84 Web Mercator
@@ -944,7 +956,7 @@ class CreateNewProject(object):
            #if not os.path.exists(destinationPath):
            #    os.makedirs(destinationPath)
 
-           rootService_json={"folders": [], "services":[{"name":serviceName,"type":"FeatureServer","url":"http://"+serverName+"/rest/services/"+serviceName+"/FeatureServer"},{"name":serviceName,"type":"MapServer"}], "currentVersion": 10.3}
+           rootService_json={"folders": [], "services":[{"name":serviceName,"type":"FeatureServer","url":"http://"+serverName+"/rest/services/"+serviceName+"/FeatureServer"},{"name":serviceName,"type":"MapServer"}], "currentVersion": arcpy.GetInstallInfo()['Version']}
            file = saveJSON(servicesDestinationPath + "/"+serviceName+".json",rootService_json)
            LoadService(sqliteDb,serviceName,serviceName, -1,"",file)
 
@@ -1046,7 +1058,6 @@ class CreateNewProject(object):
            search_json['results'].append(result)
            #result = result + 1
 
-
            #only need to update the operationalLayers
            content_items_json=openJSON(templatePath + "/content.items.data.json")
            opLayers = content_items_json['operationalLayers']=getOperationalLayers(operationalLayers,serverName,serviceName,symbols)
@@ -1079,7 +1090,7 @@ class CreateNewProject(object):
 
            #create JSON description of all services.  Each dataframe is a service for this application.
            featureserver_json={
-              "currentVersion":10.3,
+              "currentVersion":arcpy.GetInstallInfo()['Version'],
               "services": [{
                  "name":serviceName,
                  "type":"FeatureServer",
@@ -3551,8 +3562,9 @@ def initializeSqlite(sqliteDb):
         c = conn.cursor()
 
         #c.execute("PRAGMA journal_mode=WAL")
+        
         c.execute("DROP TABLE IF EXISTS catalog")
-        c.execute("DROP TABLE IF EXISTS services")
+        #c.execute("DROP TABLE IF EXISTS services")
         c.execute("CREATE TABLE IF NOT EXISTS catalog (id INTEGER PRIMARY KEY AUTOINCREMENT, name text, type text, json text)")
         c.execute("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, service text,name text, layerid int, type text,json text)")
 
@@ -3569,11 +3581,23 @@ def LoadCatalog(sqliteDb,name, dtype,file):
     json = json.replace("\xa0", "")
     json = json.replace("\n", "")
     array = [name,dtype,json]
+    #c.execute("DELETE FROM catalog where name=? and type=?", (name,dtype))
     c.execute("INSERT INTO catalog(name,type,json) VALUES(?,?,?)", (name,dtype,json))
     c.close()
     conn.commit()
     #map(tuple, array.tolist())
     conn.close()
+
+def ClearService(sqliteDb,service):
+    return
+    conn = sqlite3.connect(sqliteDb)
+    c = conn.cursor()
+    #c.execute("DELETE FROM catalog where name=?", (name,dtype))
+    c.execute("DELETE FROM services where service=?", (service))
+    c.close()
+    conn.commit()
+    conn.close()
+
 
 def LoadService(sqliteDb,service,name,  layerid,dtype,file):
     conn = sqlite3.connect(sqliteDb)
@@ -3584,6 +3608,7 @@ def LoadService(sqliteDb,service,name,  layerid,dtype,file):
     json = json.replace("\n", "")
     
     array = [service,name,layerid,dtype,json]
+    #c.execute("DELETE FROM services where service=? and name=? and layerid=? and type=?", (service,name,layerid,dtype))
     c.execute("INSERT INTO services(service,name,layerid,type,json) VALUES(?,?,?,?,?)", (service,name,layerid,dtype,json))
     c.close()
     conn.commit()
