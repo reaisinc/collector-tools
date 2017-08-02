@@ -2241,6 +2241,10 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
   sql1=sql1+("</GPSyncDatasets><AttachmentsSyncDirection>esriAttachmentsSyncDirectionBidirectional</AttachmentsSyncDirection></GPSyncReplica>'"
    ", NULL, NULL, NULL from GDB_Items;")
 
+  sql5.append(('PRAGMA writable_schema=ON;'))
+  sql5.append(('delete FROM sqlite_master where type=\'trigger\' and name like \'%_Shape\''))
+  sql5.append(('PRAGMA writable_schema=OFF;'))
+
   #sql1=sql1+("#PRAGMA writable_schema=ON;update sqlite_master set sql=replace(sql,'OBJECTID integer','OBJECTID int32') where name in ("+tables+") and type='table';#PRAGMA writable_schema=OFF;")
   #serviceRep=[sql1,sql2,sql4]
   #NON_OPTIMIZE_SIZE"
@@ -3608,11 +3612,10 @@ def LoadCatalog(sqliteDb,name, dtype,file):
     conn.close()
 
 def ClearService(sqliteDb,service):
-    return
     conn = sqlite3.connect(sqliteDb)
     c = conn.cursor()
     #c.execute("DELETE FROM catalog where name=?", (name,dtype))
-    c.execute("DELETE FROM services where service=?", (service))
+    c.execute("DELETE FROM services where service=?", (service,))
     c.close()
     conn.commit()
     conn.close()
