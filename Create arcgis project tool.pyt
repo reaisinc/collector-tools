@@ -958,7 +958,7 @@ class CreateNewProject(object):
 
            rootService_json={"folders": [], "services":[{"name":serviceName,"type":"FeatureServer","url":"http://"+serverName+"/rest/services/"+serviceName+"/FeatureServer"},{"name":serviceName,"type":"MapServer"}], "currentVersion": arcpy.GetInstallInfo()['Version']}
            file = saveJSON(servicesDestinationPath + "/"+serviceName+".json",rootService_json)
-           LoadService(sqliteDb,serviceName,serviceName, -1,"",file)
+           LoadService(sqliteDb,serviceName,serviceName, "",-1,"",file)
 
            #analysis = arcpy.mapping.AnalyzeForMSD(mxd)
            #
@@ -1060,11 +1060,21 @@ class CreateNewProject(object):
 
            #only need to update the operationalLayers
            content_items_json=openJSON(templatePath + "/content.items.data.json")
-           opLayers = content_items_json['operationalLayers']=getOperationalLayers(operationalLayers,serverName,serviceName,symbols)
-           opTables = content_items_json['tables']=getTables(operationalTables,serverName,serviceName,len(opLayers))
+           opLayers = getOperationalLayers(operationalLayers,serverName,serviceName,symbols)
+           opTables = getTables(operationalTables,serverName,serviceName,len(opLayers))
+           #need to update id (unique id=serviceName + layer name) and itemId (should be the serviceName)
+           content_items_json['operationalLayers']=copy.deepcopy(opLayers) # deep  copy
+           content_items_json['tables']=copy.deepcopy(opTables)
+           for lyr in content_items_json['operationalLayers']:
+               lyr["itemId"]=serviceName
+               lyr["id"]=serviceName+"_"+lyr["title"].replace(" ","_")
+
+           for lyr in content_items_json['tables']:
+               lyr["itemId"]=serviceName
+               lyr["id"]=serviceName+"_"+lyr["title"].replace(" ","_")
 
            file = saveJSON(servicesDestinationPath + "/content.data.json",content_items_json)
-           LoadService(sqliteDb,serviceName,"content", -1,"data",file)
+           LoadService(sqliteDb,serviceName,"content","", -1,"data",file)
 
            content_items_json=openJSON(templatePath + "/content.items.json")
            #content_items_json["id"]=title
@@ -1086,7 +1096,7 @@ class CreateNewProject(object):
            #content_items_json["url"]="http://"+serverName+"/rest/services/"+serviceName+"/FeatureServer"
 
            file=saveJSON(servicesDestinationPath + "/content.items.json",content_items_json)
-           LoadService(sqliteDb,serviceName,"content", -1,"items",file)
+           LoadService(sqliteDb,serviceName,"content","", -1,"items",file)
 
            #create JSON description of all services.  Each dataframe is a service for this application.
            featureserver_json={
@@ -1114,7 +1124,7 @@ class CreateNewProject(object):
            featureserver_json['tables']=operationalTablesObj
            
            file=saveJSON(servicesDestinationPath + "/FeatureServer.json",featureserver_json)
-           LoadService(sqliteDb,serviceName,"FeatureServer", -1,"",file)
+           LoadService(sqliteDb,serviceName,"FeatureServer", "",-1,"",file)
 
            maps_json=openJSON(templatePath + "/name.MapServer.json")
            maps_json['initialExtent']['xmin']=dataFrame.extent.XMin
@@ -1131,7 +1141,7 @@ class CreateNewProject(object):
            maps_json['mapName']=serviceName
            maps_json['tables']=operationalTablesObj
            file=saveJSON(servicesDestinationPath + "/MapServer.json",maps_json)
-           LoadService(sqliteDb,serviceName,"MapServer", -1,"",file)
+           LoadService(sqliteDb,serviceName,"MapServer","", -1,"",file)
 
            minx=str(dataFrame.extent.XMin)
            miny=str(dataFrame.extent.YMin)
@@ -1261,7 +1271,7 @@ class CreateNewProject(object):
                #getSymbol(lyr,symbols[featureName],lyr.name)
                #opLayers = content_items_json['operationalLayers']=getOperationalLayers(operationalLayers,serverName,serviceName)
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[lyr.name],"",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"",file)
 
                #now create a MapServer json file
                mapserver_json=openJSON(templatePath + "/name.MapServer.id.json")
@@ -1274,7 +1284,7 @@ class CreateNewProject(object):
                mapserver_json['geometryType']=feature_json['geometryType']
 
                file=saveJSON(servicesDestinationPath + "/MapServer."+str(layerIds[lyr.name])+".json",feature_json)
-               LoadService(sqliteDb,serviceName,"MapServer", layerIds[lyr.name],"",file)
+               LoadService(sqliteDb,serviceName,"MapServer", lyr.name,layerIds[lyr.name],"",file)
 
                #save replica file
                feature_json=openJSON(templatePath + "/name.FeatureServer.id.json")
@@ -1321,7 +1331,7 @@ class CreateNewProject(object):
                         #if i[1]=="OriginPrimary":
                         if i[1]=="OriginForeign":
                             layerObj["joinField"]=i[0]
-                            globalFields.append(layerObj["joinField"])
+                            #globalFields.append(layerObj["joinField"])
                             valid_fields.append(layerObj["joinField"])
 
                #fields = copy.deepcopy(feature_json['fields'])
@@ -1355,6 +1365,9 @@ class CreateNewProject(object):
                #else:
                    #del feature_json['globalIdField']
                    #del feature_json['globalIdFieldName']
+               for field in desc.fields:
+                   if field.type == 'Guid':
+                      globalFields.append(field.name)
 
                layerObj["type"]="layer"
                #remove the defaultValue is it is NEWID() WITH VALUES
@@ -1370,11 +1383,13 @@ class CreateNewProject(object):
                for i in feature_json['features']:
                   for j in i['attributes']:
                      if j in globalFields:
+                        #printMessage(j)
+                        #printMessage(i['attributes'][j])
                         i['attributes'][j]=i['attributes'][j].replace("{","").replace("}","")
                
                printMessage("Saving layer " + lyr.name + "(" + str(layerIds[lyr.name]) + ") to JSON")
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".query.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[lyr.name],"query",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"query",file)
 
                #create file containing objectid,globalid and has_permittee
                
@@ -1386,7 +1401,7 @@ class CreateNewProject(object):
                      if j not in valid_fields:
                         del i['attributes'][j]
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(id)+".outfields.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", id,"outfields",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer", "",id,"outfields",file)
 
                #create a JSON OBJECTID file used in ArcGIS for showing the attribute table
                #remove all fields except OBJECTID
@@ -1414,7 +1429,7 @@ class CreateNewProject(object):
                   #      del feature_json.features[i]['attributes'][j]
 
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".objectid.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[lyr.name],"objectid",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"objectid",file)
                layerObj["itemId"]= lyr.name.replace(" ","_")+str(layerIds[lyr.name])
                if desc.editorTrackingEnabled:
                   #save to config too for easy access
@@ -1475,6 +1490,10 @@ class CreateNewProject(object):
                    del feature_json['globalIdField']
                    #del feature_json['globalIdFieldName']
                    
+               for field in desc.fields:
+                  if field.type == 'Guid':
+                      globalFields.append(field.name)
+
                tableObj["type"]="table"
                tableObj["id"]=layerIds[tbl.name]
                if desc.relationshipClassNames:
@@ -1484,7 +1503,7 @@ class CreateNewProject(object):
                         #if i[1]=="OriginPrimary":
                         if i[1]=="OriginForeign":
                             tableObj["joinField"]=i[0]
-                            globalFields.append(tableObj["joinField"])
+                            #globalFields.append(tableObj["joinField"])
                             valid_fields.append(tableObj["joinField"])
                
                feature_json['indexes']=getIndexes(tbl)
@@ -1523,7 +1542,7 @@ class CreateNewProject(object):
                   feature_json['hasAttachments']=False
 
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[tbl.name],"",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer", tbl.name,layerIds[tbl.name],"",file)
                tableObj["itemId"]= tbl.name.replace(" ","_")+str(layerIds[tbl.name])
                
                #config["services"][serviceName]["layers"][str(layerIds[tbl.name])]=tableObj
@@ -1555,7 +1574,7 @@ class CreateNewProject(object):
                #layerObj={"name":lyr.name,"data":dataName}
                printMessage("Saving table " + tbl.name + "("+str(layerIds[tbl.name]) + ") to JSON")
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".query.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[tbl.name],"query",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"query",file)
 
                #valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
                for i in feature_json['fields']:
@@ -1566,7 +1585,7 @@ class CreateNewProject(object):
                      if j not in valid_fields:
                         del i['attributes'][j]
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".outfields.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", layerIds[tbl.name],"outfields",file)
+               LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"outfields",file)
                
 
                id = id+1
@@ -3566,7 +3585,7 @@ def initializeSqlite(sqliteDb):
         c.execute("DROP TABLE IF EXISTS catalog")
         #c.execute("DROP TABLE IF EXISTS services")
         c.execute("CREATE TABLE IF NOT EXISTS catalog (id INTEGER PRIMARY KEY AUTOINCREMENT, name text, type text, json text)")
-        c.execute("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, service text,name text, layerid int, type text,json text)")
+        c.execute("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, service text,name text, layername text,layerid int, type text,json text)")
 
         #c.execute("Create table "+inFeaturesName+" (objectid integer,t_r text,sect text,shape_area double)")
         #c.executemany("Insert into "+inFeaturesName+"(objectid,t_r,sect,shape_area) values (?,?,?,?)", map(tuple, array.tolist()))
@@ -3599,7 +3618,7 @@ def ClearService(sqliteDb,service):
     conn.close()
 
 
-def LoadService(sqliteDb,service,name,  layerid,dtype,file):
+def LoadService(sqliteDb,service,name, layername, layerid,dtype,file):
     conn = sqlite3.connect(sqliteDb)
     c = conn.cursor() 
 
@@ -3609,7 +3628,7 @@ def LoadService(sqliteDb,service,name,  layerid,dtype,file):
     
     array = [service,name,layerid,dtype,json]
     #c.execute("DELETE FROM services where service=? and name=? and layerid=? and type=?", (service,name,layerid,dtype))
-    c.execute("INSERT INTO services(service,name,layerid,type,json) VALUES(?,?,?,?,?)", (service,name,layerid,dtype,json))
+    c.execute("INSERT INTO services(service,name,layername,layerid,type,json) VALUES(?,?,?,?,?,?)", (service,name,layername,layerid,dtype,json))
     c.close()
     conn.commit()
     conn.close()
