@@ -1369,8 +1369,12 @@ class CreateNewProject(object):
                    if field.type == 'Guid':
                       globalFields.append(field.name)
 
-               if symbols[featureName]["fields"]:
-                   valid_fields.append(symbols[featureName]["fields"])
+               try:
+                  if symbols[featureName]["fields"]:
+                      valid_fields.append(symbols[featureName]["fields"])
+               except Exception as e:
+                      pass
+                      
                layerObj["type"]="layer"
                #remove the defaultValue is it is NEWID() WITH VALUES
                #for i in feature_json['fields']:
