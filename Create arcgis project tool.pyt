@@ -1369,6 +1369,8 @@ class CreateNewProject(object):
                    if field.type == 'Guid':
                       globalFields.append(field.name)
 
+               if symbols[featureName]["fields"]:
+                   valid_fields.append(symbols[featureName]["fields"])
                layerObj["type"]="layer"
                #remove the defaultValue is it is NEWID() WITH VALUES
                #for i in feature_json['fields']:
@@ -1713,6 +1715,17 @@ def getSymbology(mxd):
                     #  name=rootname[1]
                     #printMessage("Symbology found for : " + name + " length: " + str(symb.length))
                msd_metadata[name]["symbols"]=j
+               #now get field for symbols if exists
+               f = j.getElementsByTagName("Fields")
+               if len(f)>0:
+                   for m in f:
+                       n = m.getElementsByTagName("String")
+                       if len(n)>0:
+                           msd_metadata[name]["fields"]=n[0].childNodes[0].nodeValue
+                           printMessage("Found symbol field: " + msd_metadata[name]["fields"])
+
+
+
 
             #printMessage("Found: " + str(symb.length))
             #name,lyr = self.loadMsdLayerDom(dom)
