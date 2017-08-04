@@ -288,6 +288,7 @@ class CreateNewProject(object):
         printMessage("Parameters")
 
         # suppose you want to add it to the current MXD (open MXD)
+        #mxd,host,user,datasrc,output,pg,spatialite_path,gdal_path,cert,pem,
         try:
            if type(messages)==types.ListType:
               vals = messages
@@ -1397,15 +1398,24 @@ class CreateNewProject(object):
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".query.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"query",file)
 
-               #create file containing objectid,globalid and has_permittee
-               
+               #create file containing objectid,globalid and any field used for symbology
+               fields = []
                for i in feature_json['fields']:
-                  if i['name'] not in valid_fields:
-                     del i
+                  if i['name'] in valid_fields:
+                      fields.append(i)
+                     #try:
+                     #   feature_json['fields'].remove(i)
+                     #   del i
+                     #except:
+                     #   pass
+                     #del i
+                     #del feature_json['fields'][i]
+               feature_json['fields'] = fields
                for i in feature_json['features']:
                   for j in i['attributes'].keys():
                      if j not in valid_fields:
                         del i['attributes'][j]
+                        #del feature_json['features']['attributes'][j]
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(id)+".outfields.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer", "",id,"outfields",file)
 
@@ -1583,9 +1593,13 @@ class CreateNewProject(object):
                LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"query",file)
 
                #valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
+               fields = []
                for i in feature_json['fields']:
-                  if i['name'] not in valid_fields:
-                     del i
+                  if i['name'] in valid_fields:
+                     fields.append(i)
+                     #feature_json['fields'].remove(i)
+                     #del i
+               feature_json['fields'] = fields
                for i in feature_json['features']:
                   for j in i['attributes'].keys():
                      if j not in valid_fields:
@@ -3780,7 +3794,7 @@ def main():
             printUsage()
             return
 
-    tool.execute(tool.getParameterInfo(),[mxd,host,user,output,pg,spatialite_path,gdal_path,cert,pem,datasrc])
+    tool.execute(tool.getParameterInfo(),[mxd,host,user,datasrc,output,pg,spatialite_path,gdal_path,cert,pem])
     
 if __name__ == '__main__':
     if sys.executable.find("python.exe") != -1:
