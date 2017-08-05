@@ -1888,7 +1888,7 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
      #remove trailing close paren
      sql = sql[:-1]
      #next line is important when doing lookups
-     sql = sql.replace(oidName +"integer",oidName + " int32")
+     sql = sql.replace(oidName +" integer",oidName + " int32")
      sql = sql.replace("primary key ","")
      sql = sql.replace(" not null","")
      #gdb_transaction_time = 'gdb_transaction_time()'
