@@ -425,11 +425,9 @@ class CreateNewProject(object):
         printMessage("gdal-data path: " + gdal_data_path)
         printMessage("cert path: " + cert)
         printMessage("pem path: " + pem)
-        
 
         if pg:
             printMessage("Postgresql connection: " + pg)
-
 
         Config.set("settings","server",serverName)
         Config.set("settings","username",username)
@@ -479,7 +477,6 @@ class CreateNewProject(object):
                os.makedirs(serviceDestinationPath)
             except Exception as e:
                printMessage("Unable to create destination path")
-
 
         servicesDestinationPath = serviceDestinationPath + "/services"
         if not os.path.exists(servicesDestinationPath):
@@ -625,32 +622,38 @@ class CreateNewProject(object):
 
         if not os.path.exists(baseDestinationPath + "/portals.self.json"):
            portals_self_json=openJSON(templatePath + "/portals.self.json")
-           portals_self_json['portalHostname']=serverName
-           portals_self_json['defaultExtent']['xmin']=mxd.activeDataFrame.extent.XMin
-           portals_self_json['defaultExtent']['ymin']=mxd.activeDataFrame.extent.YMin
-           portals_self_json['defaultExtent']['xmax']=mxd.activeDataFrame.extent.XMax
-           portals_self_json['defaultExtent']['ymax']=mxd.activeDataFrame.extent.YMax
-           portals_self_json['user']['fullName']=fullname
-           portals_self_json['user']['firstName']=first_name
-           portals_self_json['user']['lastName']=last_name
-           portals_self_json['user']['email']=email_address
-           portals_self_json['user']['username']=username
-           file = saveJSON(baseDestinationPath + "/portals.self.json",portals_self_json)
-           LoadCatalog(sqliteDb,"portals", "self",file)
+        else:
+           portals_self_json=openJSON(baseDestinationPath + "/portals.self.json")
+
+        portals_self_json['portalHostname']=serverName
+        portals_self_json['defaultExtent']['xmin']=mxd.activeDataFrame.extent.XMin
+        portals_self_json['defaultExtent']['ymin']=mxd.activeDataFrame.extent.YMin
+        portals_self_json['defaultExtent']['xmax']=mxd.activeDataFrame.extent.XMax
+        portals_self_json['defaultExtent']['ymax']=mxd.activeDataFrame.extent.YMax
+        portals_self_json['user']['fullName']=fullname
+        portals_self_json['user']['firstName']=first_name
+        portals_self_json['user']['lastName']=last_name
+        portals_self_json['user']['email']=email_address
+        portals_self_json['user']['username']=username
+        file = saveJSON(baseDestinationPath + "/portals.self.json",portals_self_json)
+        LoadCatalog(sqliteDb,"portals", "self",file)
 
         if not os.path.exists(baseDestinationPath + "/community.users.json"):
            community_users_json=openJSON(templatePath + "/community.users.json")
-           community_users_json['fullName']=fullname
-           community_users_json['firstName']=first_name
-           community_users_json['lastName']=last_name
-           community_users_json['email']=email_address
-           community_users_json['username']=username
-           community_users_json['created']=created_ts
-           community_users_json['modified']=created_ts
-           community_users_json['lastLogin']=created_ts
-           #community_users_json['groups'][0]['userMembership']['username']=username
-           file = saveJSON(baseDestinationPath + "/community.users.json",community_users_json)
-           LoadCatalog(sqliteDb,"community", "users",file)
+        else:
+           community_users_json=openJSON(baseDestinationPath + "/community.users.json")
+
+        community_users_json['fullName']=fullname
+        community_users_json['firstName']=first_name
+        community_users_json['lastName']=last_name
+        community_users_json['email']=email_address
+        community_users_json['username']=username
+        community_users_json['created']=created_ts
+        community_users_json['modified']=created_ts
+        community_users_json['lastLogin']=created_ts
+        #community_users_json['groups'][0]['userMembership']['username']=username
+        file = saveJSON(baseDestinationPath + "/community.users.json",community_users_json)
+        LoadCatalog(sqliteDb,"community", "users",file)
 
         #User info
         content_users_json=openJSON(templatePath + "/content.users.json")
