@@ -171,6 +171,20 @@ class CreateNewProject(object):
         if not outputfolder.value:
             outputfolder.value=os.getcwd().replace("\\","/")
 
+        remoteoutputfolder = arcpy.Parameter(
+            displayName="Enter remote output folder (default is output folder)",
+            name="remoteoutputfolder",
+            datatype="DEFolder",
+            parameterType="Optional",
+            direction="Input")
+        try:
+            remoteoutputfolder.value= Config.get("settings","remotedestination")
+        except Exception as e:
+           pass
+        
+        if not remoteoutputfolder.value:
+            remoteoutputfolder.value=os.getcwd().replace("\\","/")
+
         #sqlitedb = arcpy.Parameter()
         #sqlitedb.name = u'Output_Report_File'
         #sqlitedb.displayName = u'Output Sqlite database'
@@ -242,7 +256,7 @@ class CreateNewProject(object):
 
         #param0.filter.type = "ValueList"
         #param0.filter.list = ["Street","Aerial","Terrain","Topographic"]
-        parameters = [servername,username,datasrc,outputfolder,pg,spatialite_path,gdal_path,cert,pem]
+        parameters = [servername,username,datasrc,outputfolder,remoteoutputfolder,pg,spatialite_path,gdal_path,cert,pem]
         #username,projecttitle,projectname,tags,summary,description,
         return parameters
 
@@ -272,13 +286,17 @@ class CreateNewProject(object):
         username = parameters[1].valueAsText        
         datasrc = parameters[2].valueAsText
         baseDestinationPath = parameters[3].valueAsText
+        if parameters[4].valueAsText:
+            remoteDestinationPath = parameters[4].valueAsText
+        else:
+            remoteDestinationPath = baseDestinationPath
         #sqliteDb = parameters[3].valueAsText
         
-        pg  = parameters[4].valueAsText
-        spatialite_path=parameters[5].valueAsText
-        gdal_path=parameters[6].valueAsText
-        cert = parameters[7].valueAsText
-        pem = parameters[8].valueAsText
+        pg  = parameters[5].valueAsText
+        spatialite_path=parameters[6].valueAsText
+        gdal_path=parameters[7].valueAsText
+        cert = parameters[8].valueAsText
+        pem = parameters[9].valueAsText
         
         #toolkitPath+"/spatialite/spatialite.exe
         created_ts=int(time.time()*1000)
@@ -302,18 +320,23 @@ class CreateNewProject(object):
 
               if len(vals)>4:
                  baseDestinationPath=vals[4].replace("\\","/")
+              if len(vals)>5:
+                 remoteDestinationPath=vals[5].replace("\\","/")
+              else:
+                 remoteDestinationPath = baseDestinationPath
+
               #if len(vals)>4:
               #   sqliteDb=vals[4]
-              if len(vals)>5:
-                 pg=vals[5]
               if len(vals)>6:
-                 spatialite_path=vals[6]
+                 pg=vals[6]
               if len(vals)>7:
-                 gdal_path=vals[7]
+                 spatialite_path=vals[7]
               if len(vals)>8:
-                 cert=vals[8]
+                 gdal_path=vals[8]
               if len(vals)>9:
-                 pem=vals[9]
+                 cert=vals[9]
+              if len(vals)>10:
+                 pem=vals[10]
 
               mxdName=vals[0].replace("\\","/")
               mxd = arcpy.mapping.MapDocument(mxdName)
@@ -418,6 +441,8 @@ class CreateNewProject(object):
         printMessage("MXD Path: " + mxd.filePath)
         printMessage("Default data source: " + datasrc)
         printMessage("Destination path: " + baseDestinationPath)
+        printMessage("Remote destination path: " + remoteDestinationPath)
+
         printMessage("Sqlite path: " + sqliteDb)
         printMessage("Spatialite path: " + spatialite_path)
         printMessage("ogr2ogr path: " + ogr2ogr_path)
@@ -433,6 +458,7 @@ class CreateNewProject(object):
         Config.set("settings","username",username)
         Config.set("settings","mxd",mxd.filePath)
         Config.set("settings","destination",baseDestinationPath)
+        Config.set("settings","remotedestination",remoteDestinationPath)
         Config.set("settings","sqlitedb",sqliteDb)
         Config.set("settings","spatialite_path",spatialite_path)
         Config.set("settings","gdal_path",gdal_path)
@@ -501,6 +527,7 @@ class CreateNewProject(object):
             except Exception as e:
                 pass
         printMessage("Replica path: " +replicaDestinationPath)
+        remoteReplicaDestinationPath = remoteDestinationPath + "/catalogs/" + serviceName + "/replicas" + 
 
         mapfileDestinationPath = serviceDestinationPath + "/mapfiles"
         if not os.path.exists(mapfileDestinationPath):
@@ -573,7 +600,7 @@ class CreateNewProject(object):
         config["arcMapVersion"]=  arcpy.GetInstallInfo()['Version']
         config["defaultDatabase"]=datasrc
 
-        config["dataPath"]=baseDestinationPath
+        config["dataPath"]=remoteDestinationPath
         config["dataSourceTypes"]=["file","sqlite","pgsql"]
 
         #config["services"][serviceName]["mxd"]=mxd.filePath
@@ -683,7 +710,12 @@ class CreateNewProject(object):
         #community groups
         #community_groups_json=openJSON(templatePath + "/community.groups.json")
         #saveJSON(destinationPath + "/community.groups.json",community_groups_json)
-        shutil.copy2(templatePath + "/community.groups.json", baseDestinationPath + "/community.groups.json")
+        #shutil.copy2(templatePath + "/community.groups.json", baseDestinationPath + "/community.groups.json")
+
+        community_groups_json=openJSON(templatePath + "/community.groups.json")
+        file = saveJSON(baseDestinationPath + "/community.groups.json",community_groups_json)
+        LoadCatalog(sqliteDb,"community", "groups",file)
+
         #os.system("copy "+ templatePath + "/community.groups.json " + servicesDestinationPath + "/community.groups.json")
         #result = 0
 
@@ -824,7 +856,7 @@ class CreateNewProject(object):
                  rootFGDB=os.path.dirname(desc.catalogPath).replace("\\","/")
 
            project["fgdb"]=rootFGDB
-           project["replica"]=replicaDestinationPath+"/"+serviceName+".geodatabase"
+           project["replica"]=remoteReplicaDestinationPath+"/"+serviceName+".geodatabase"
 
            #config["services"][serviceName]["fgdb"]=rootFGDB
            #config["services"][serviceName]["replica"]=replicaDestinationPath+"/"+serviceName+".geodatabase"
@@ -3724,6 +3756,14 @@ def main():
         output=os.getcwd().replace("\\","/")
 
     try:
+        remoteoutput= Config.get("settings","remotedestination")
+    except Exception as e:
+        pass
+        
+    if not remoteoutput:
+        remoteoutput=os.getcwd().replace("\\","/")
+
+    try:
         mxd= Config.get("settings","mxd")
     except Exception as e:
         pass        
@@ -3779,8 +3819,10 @@ def main():
         #    db = sys.argv[i+1]
         elif sys.argv[i]=="-mxd":
             mxd = sys.argv[i+1]
-        elif sys.argv[i]=="-root":
-            root_path = sys.argv[i+1]
+        elif sys.argv[i]=="-output":
+            output = sys.argv[i+1]
+        elif sys.argv[i]=="-remoteoutput":
+            remoteoutput = sys.argv[i+1]
         elif sys.argv[i]=="-pg":
             pg = sys.argv[i+1]
         elif sys.argv[i]=="-spatialite_path":
@@ -3797,7 +3839,7 @@ def main():
             printUsage()
             return
 
-    tool.execute(tool.getParameterInfo(),[mxd,host,user,datasrc,output,pg,spatialite_path,gdal_path,cert,pem])
+    tool.execute(tool.getParameterInfo(),[mxd,host,user,datasrc,output,remoteoutput,pg,spatialite_path,gdal_path,cert,pem])
     
 if __name__ == '__main__':
     if sys.executable.find("python.exe") != -1:
