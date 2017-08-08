@@ -527,7 +527,7 @@ class CreateNewProject(object):
             except Exception as e:
                 pass
         printMessage("Replica path: " +replicaDestinationPath)
-        remoteReplicaDestinationPath = remoteDestinationPath + "/catalogs/" + serviceName + "/replicas" + 
+        remoteReplicaDestinationPath = remoteDestinationPath + "/catalogs/" + serviceName + "/replicas" 
 
         mapfileDestinationPath = serviceDestinationPath + "/mapfiles"
         if not os.path.exists(mapfileDestinationPath):
