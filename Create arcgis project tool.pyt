@@ -174,7 +174,7 @@ class CreateNewProject(object):
         remoteoutputfolder = arcpy.Parameter(
             displayName="Enter remote output folder (default is output folder)",
             name="remoteoutputfolder",
-            datatype="DEFolder",
+            datatype=u"GPString",
             parameterType="Optional",
             direction="Input")
         try:
@@ -442,8 +442,7 @@ class CreateNewProject(object):
         printMessage("Default data source: " + datasrc)
         printMessage("Destination path: " + baseDestinationPath)
         printMessage("Remote destination path: " + remoteDestinationPath)
-
-        printMessage("Sqlite path: " + sqliteDb)
+        printMessage("Sqlite path: " + os.path.join(remoteDestinationPath,"catalogs","collectorDb.sqlite"))
         printMessage("Spatialite path: " + spatialite_path)
         printMessage("ogr2ogr path: " + ogr2ogr_path)
         printMessage("ogrinfo path: " + ogrinfo_path)
@@ -609,7 +608,8 @@ class CreateNewProject(object):
         #config["services"][serviceName]["dataSource"]="sqlite"
         #config["services"][serviceName]["rootPath"]=baseDestinationPath
 
-        config["sqliteDb"]=sqliteDb
+        config["sqliteDb"]=remoteDestinationPath+"/catalogs/collectorDb.sqlite"
+        #sqliteDb
         config["pg"]=pg
         #project["dataSource"]="sqlite"
         
