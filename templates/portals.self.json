@@ -379,7 +379,7 @@
 "homePageFeaturedContent":"",
 "homePageFeaturedContentCount":12,
 "id":"KOH6W4WICH5gzytg",
-"isPortal":false,
+"isPortal":true,
 "layerTemplatesGroupQuery":"title:\"Esri Layer Templates\" AND owner:esri_en",
 "livingAtlasGroupQuery":"(title:\"Featured Maps And Apps\" AND owner:esri) OR (tags:\"gallery\" AND owner:Esri_cy_US)",
 "maxTokenExpirationMinutes":-1,
