@@ -1366,7 +1366,7 @@ class CreateNewProject(object):
                #       feature_json['geometryType']='esriGeometryPoint'
                #    elif desc.shapeType=='MultiPoint':
                #       feature_json['geometryType']='esriGeometryMultiPoint'
-
+               layerObj["shapeFieldName"]=desc.shapeFieldName
                if desc.hasOID:
                    feature_json['objectIdField']=desc.OIDFieldName
                    layerObj["oidname"]=desc.OIDFieldName
