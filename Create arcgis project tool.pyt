@@ -1439,10 +1439,16 @@ class CreateNewProject(object):
                #remove all fields except OBJECTID
                #feature_json['fields']=[{"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeInteger","alias":"OBJECTID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None}]
                #OBJECTID,GlobalID,has_permittee
+               if desc.hasOID:
+                   #feature_json['objectIdField']=desc.OIDFieldName
+                  feature_json['fields']=[
+                      {"alias":desc.OIDFieldName,"name":desc.OIDFieldName,"type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
+                  ]
 
-               feature_json['fields']=[
-                   {"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
-               ]
+               else:
+                  feature_json['fields']=[
+                      {"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
+                  ]
                features=[]
                #for i in feature_json['fields']:
                #   if i['name'] != 'OBJECTID':
@@ -1450,7 +1456,7 @@ class CreateNewProject(object):
                #      #del feature_json['fields'][i]
                for i in feature_json['features']:
                   if desc.OIDFieldName:
-                    features.append({"attributes":{"OBJECTID":i['attributes'][desc.OIDFieldName]}})
+                    features.append({"attributes":{desc.OIDFieldName:i['attributes'][desc.OIDFieldName]}})
                feature_json['features']=features
                   #for j in i['attributes']:
                   #    if j == 'OBJECTID':
@@ -1991,8 +1997,11 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
 
      #next_row_id='Next_RowID (NULL,\''+featureName+'\')'
      #next_row_id='(select max(OBJECTID)+1 from \''+featureName+'\')'
-     next_row_id='(coalesce (NEW.OBJECTID,(select max(OBJECTID)+1 from \''+featureName+'\'),1)'
-
+     if desc.hasOID:
+        next_row_id='(coalesce (NEW.'+desc.OIDFieldName+',(select max('+desc.OIDFieldName+')+1 from \''+featureName+'\'),1)'
+     else:
+        next_row_id='(coalesce (NEW.OBJECTID,(select max(OBJECTID)+1 from \''+featureName+'\'),1)'
+     
      fields=[]
      pre=""
      newFields=""
