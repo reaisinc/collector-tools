@@ -1415,59 +1415,60 @@ class CreateNewProject(object):
                LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"query",file)
 
                #create file containing objectid,globalid and any field used for symbology
-               fields = []
-               for i in feature_json['fields']:
-                  if i['name'] in valid_fields:
-                      fields.append(i)
-                     #try:
-                     #   feature_json['fields'].remove(i)
-                     #   del i
-                     #except:
-                     #   pass
-                     #del i
-                     #del feature_json['fields'][i]
-               feature_json['fields'] = fields
-               for i in feature_json['features']:
-                  for j in i['attributes'].keys():
-                     if j not in valid_fields:
-                        del i['attributes'][j]
-                        #del feature_json['features']['attributes'][j]
-               file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(id)+".outfields.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer", "",id,"outfields",file)
+               if false:
+                    fields = []
+                    for i in feature_json['fields']:
+                        if i['name'] in valid_fields:
+                            fields.append(i)
+                            #try:
+                            #   feature_json['fields'].remove(i)
+                            #   del i
+                            #except:
+                            #   pass
+                            #del i
+                            #del feature_json['fields'][i]
+                    feature_json['fields'] = fields
+                    for i in feature_json['features']:
+                        for j in i['attributes'].keys():
+                            if j not in valid_fields:
+                                del i['attributes'][j]
+                                #del feature_json['features']['attributes'][j]
+                    file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(id)+".outfields.json",feature_json)
+                    LoadService(sqliteDb,serviceName,"FeatureServer", "",id,"outfields",file)
 
-               #create a JSON OBJECTID file used in ArcGIS for showing the attribute table
-               #remove all fields except OBJECTID
-               #feature_json['fields']=[{"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeInteger","alias":"OBJECTID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None}]
-               #OBJECTID,GlobalID,has_permittee
-               if desc.hasOID:
-                   #feature_json['objectIdField']=desc.OIDFieldName
-                  feature_json['fields']=[
-                      {"alias":desc.OIDFieldName,"name":desc.OIDFieldName,"type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
-                  ]
+                    #create a JSON OBJECTID file used in ArcGIS for showing the attribute table
+                    #remove all fields except OBJECTID
+                    #feature_json['fields']=[{"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeInteger","alias":"OBJECTID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None}]
+                    #OBJECTID,GlobalID,has_permittee
+                    if desc.hasOID:
+                        #feature_json['objectIdField']=desc.OIDFieldName
+                        feature_json['fields']=[
+                            {"alias":desc.OIDFieldName,"name":desc.OIDFieldName,"type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
+                        ]
 
-               else:
-                  feature_json['fields']=[
-                      {"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
-                  ]
-               features=[]
-               #for i in feature_json['fields']:
-               #   if i['name'] != 'OBJECTID':
-               #      del i
-               #      #del feature_json['fields'][i]
-               for i in feature_json['features']:
-                  if desc.OIDFieldName:
-                    features.append({"attributes":{desc.OIDFieldName:i['attributes'][desc.OIDFieldName]}})
-               feature_json['features']=features
-                  #for j in i['attributes']:
-                  #    if j == 'OBJECTID':
-                  #      attribute={"OBJECTID":j}
-                  #      #del j
-                  #for j in feature_json['features'][i]['attributes']:
-                  #   if feature_json['features'][i]['attributes'][j]['name'] != 'OBJECTID':
-                  #      del feature_json.features[i]['attributes'][j]
+                    else:
+                        feature_json['fields']=[
+                            {"alias":"OBJECTID","name":"OBJECTID","type":"esriFieldTypeOID","sqlType":"sqlTypeOther","defaultValue":None,"domain":None,"nullable":False,"editable":False}
+                        ]
+                    features=[]
+                    #for i in feature_json['fields']:
+                    #   if i['name'] != 'OBJECTID':
+                    #      del i
+                    #      #del feature_json['fields'][i]
+                    for i in feature_json['features']:
+                        if desc.OIDFieldName:
+                            features.append({"attributes":{desc.OIDFieldName:i['attributes'][desc.OIDFieldName]}})
+                    feature_json['features']=features
+                        #for j in i['attributes']:
+                        #    if j == 'OBJECTID':
+                        #      attribute={"OBJECTID":j}
+                        #      #del j
+                        #for j in feature_json['features'][i]['attributes']:
+                        #   if feature_json['features'][i]['attributes'][j]['name'] != 'OBJECTID':
+                        #      del feature_json.features[i]['attributes'][j]
 
-               file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".objectid.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"objectid",file)
+                    file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".objectid.json",feature_json)
+                    LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"objectid",file)
                layerObj["itemId"]= lyr.name.replace(" ","_")+str(layerIds[lyr.name])
                if desc.editorTrackingEnabled:
                   #save to config too for easy access
@@ -1615,19 +1616,20 @@ class CreateNewProject(object):
                LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"query",file)
 
                #valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
-               fields = []
-               for i in feature_json['fields']:
-                  if i['name'] in valid_fields:
-                     fields.append(i)
-                     #feature_json['fields'].remove(i)
-                     #del i
-               feature_json['fields'] = fields
-               for i in feature_json['features']:
-                  for j in i['attributes'].keys():
-                     if j not in valid_fields:
-                        del i['attributes'][j]
-               file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".outfields.json",feature_json)
-               LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"outfields",file)
+               if false:
+                    fields = []
+                    for i in feature_json['fields']:
+                        if i['name'] in valid_fields:
+                            fields.append(i)
+                            #feature_json['fields'].remove(i)
+                            #del i
+                    feature_json['fields'] = fields
+                    for i in feature_json['features']:
+                        for j in i['attributes'].keys():
+                            if j not in valid_fields:
+                                del i['attributes'][j]
+                    file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[tbl.name])+".outfields.json",feature_json)
+                    LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"outfields",file)
                
 
                id = id+1
