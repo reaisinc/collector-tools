@@ -1414,8 +1414,33 @@ class CreateNewProject(object):
                file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".query.json",feature_json)
                LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"query",file)
 
+               #set editor tracking fields
+               editorTracking={}
+               if desc.editorTrackingEnabled:
+                  editorTracking['creationDateField']=desc.createdAtFieldName
+                  editorTracking['creatorField']=desc.creatorFieldName
+                  editorTracking['editDateField']=desc.editedAtFieldName
+                  editorTracking['editorField']=desc.editorFieldName
+                  feature_json['editFieldsInfo']=editorTracking
+                  #save to config too for easy access
+                  #tableObj["editFieldsInfo"]=editorTracking
+               else:
+                  del feature_json['editFieldsInfo']
+
+               feature_json['editingInfo']={"lastEditDate":created_ts}
+
+               if arcpy.Exists(rootFGDB+"/"+featureName+"__ATTACH"):
+                  feature_json['hasAttachments']=True
+                  feature_json['advancedQueryCapabilities']={}
+                  feature_json['advancedQueryCapabilities']['supportsQueryAttachments']=True
+                  feature_json['attachmentProperties']=[{"name":"name","isEnabled":True},{"name":"size","isEnabled":True},{"name":"contentType","isEnabled":True},{"name":"keywords","isEnabled":True}]
+                  
+               else:
+                  feature_json['hasAttachments']=False
+               
+
                #create file containing objectid,globalid and any field used for symbology
-               if false:
+               if False:
                     fields = []
                     for i in feature_json['fields']:
                         if i['name'] in valid_fields:
@@ -1469,6 +1494,7 @@ class CreateNewProject(object):
 
                     file=saveJSON(servicesDestinationPath + "/FeatureServer."+str(layerIds[lyr.name])+".objectid.json",feature_json)
                     LoadService(sqliteDb,serviceName,"FeatureServer",lyr.name, layerIds[lyr.name],"objectid",file)
+               
                layerObj["itemId"]= lyr.name.replace(" ","_")+str(layerIds[lyr.name])
                if desc.editorTrackingEnabled:
                   #save to config too for easy access
@@ -1616,7 +1642,7 @@ class CreateNewProject(object):
                LoadService(sqliteDb,serviceName,"FeatureServer",tbl.name, layerIds[tbl.name],"query",file)
 
                #valid_fields = ["OBJECTID","GlobalID","GlobalGUID","has_permittee"]
-               if false:
+               if False:
                     fields = []
                     for i in feature_json['fields']:
                         if i['name'] in valid_fields:
