@@ -79,7 +79,7 @@
         "transparency": 0,
         "labelingInfo": null
     },
-    "allowGeometryUpdates": false,
+    "allowGeometryUpdates": true,
     "hasAttachments": true,
     "htmlPopupType": "esriServerHTMLPopupTypeAsHTMLText",
     "hasM": false,

@@ -334,6 +334,10 @@ class CreateNewProject(object):
             datasrc = "pgsql"
         else:
             datasrc="sqlite"
+        if not pem:
+            pem=""
+        if not cert:
+            cert=""
 
         
         #if sqliteDb.find(".sqlite") == -1:
@@ -349,6 +353,45 @@ class CreateNewProject(object):
         #       return
         #       #os._exit(1)
 
+        serviceName = mxd.activeDataFrame.name.replace(" ","").lower()
+        if serviceName=='Layers':
+           printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
+           return
+
+        #mxd.makeThumbnail ()
+        #toolkitPath = os.path.abspath(os.path.dirname(__file__)).replace("\\","/")
+        
+        templatePath = toolkitPath + "/templates"
+        if not os.path.exists(templatePath):
+            printMessage("Template path not found: " + templatePath)
+            return
+
+        cfgfile = open(toolkitPath+"/settings.ini",'w')
+        try:
+            Config.add_section("settings")
+        except Exception as e:
+            pass
+
+        Config.set("settings","server",serverName)
+        Config.set("settings","username",username)
+        Config.set("settings","mxd",mxd.filePath)
+        Config.set("settings","destination",baseDestinationPath)
+        #Config.set("settings","remotedestination",remoteDestinationPath)
+        Config.set("settings","sqlitedb",sqliteDb)
+        Config.set("settings","spatialite_path",spatialite_path)
+        Config.set("settings","gdal_path",gdal_path)
+        Config.set("settings","cert",cert)
+        Config.set("settings","pem",pem)
+        Config.set("settings","datasrc",datasrc)
+
+        if pg:
+            Config.set("settings","pg",pg)
+        else:
+            Config.set("settings","pg","")
+
+        Config.write(cfgfile)
+        cfgfile.close()
+        del cfgfile 
 
         #locate spatialite, ogr2ogr, and ogrinfo executables
         #if sys.platform== 'win32':
@@ -386,35 +429,11 @@ class CreateNewProject(object):
            printMessage("Unable to locate gdal-data path")
            return
 
-        if not pem:
-            pem=""
-        if not cert:
-            cert=""
 
         #try:
         #   arcpy.gp.CreateSQLiteDatabase(sqliteDb, "SPATIALITE")
         #except Exception as e:
         #   arcpy.AddMessage("Database already exists")
-
-        
-        serviceName = mxd.activeDataFrame.name.replace(" ","").lower()
-        if serviceName=='Layers':
-           printMessage("Rename the dataframe from Layers to service name.  Must be valid service name (no spaces)")
-           return
-
-        #mxd.makeThumbnail ()
-        #toolkitPath = os.path.abspath(os.path.dirname(__file__)).replace("\\","/")
-        
-        templatePath = toolkitPath + "/templates"
-        if not os.path.exists(templatePath):
-            printMessage("Template path not found: " + templatePath)
-            return
-
-        cfgfile = open(toolkitPath+"/settings.ini",'w')
-        try:
-            Config.add_section("settings")
-        except Exception as e:
-            pass
 
         printMessage("Server name: " +serverName)
         printMessage("User name: " + username)
@@ -432,27 +451,8 @@ class CreateNewProject(object):
 
         if pg:
             printMessage("Postgresql connection: " + pg)
-
-        Config.set("settings","server",serverName)
-        Config.set("settings","username",username)
-        Config.set("settings","mxd",mxd.filePath)
-        Config.set("settings","destination",baseDestinationPath)
-        #Config.set("settings","remotedestination",remoteDestinationPath)
-        Config.set("settings","sqlitedb",sqliteDb)
-        Config.set("settings","spatialite_path",spatialite_path)
-        Config.set("settings","gdal_path",gdal_path)
-        Config.set("settings","cert",cert)
-        Config.set("settings","pem",pem)
-        Config.set("settings","datasrc",datasrc)
-
-        if pg:
-            Config.set("settings","pg",pg)
-        else:
-            Config.set("settings","pg","")
-
-        Config.write(cfgfile)
-        cfgfile.close()
-        del cfgfile       
+        
+     
         
         printMessage("****************************************************************")
         printMessage("Settings")
@@ -2090,15 +2090,34 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
 
      #need to add triggers for editing spatial layers
      if svcType!="Table":
-         sql5.append(('CREATE TRIGGER "st_delete_trigger_'+featureName+'_SHAPE" AFTER DELETE ON '+featureName+' FOR EACH ROW BEGIN '
-         'DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; END'))
-         sql5.append(('CREATE TRIGGER "st_insert_trigger_'+featureName+'_SHAPE" AFTER INSERT ON '+featureName+' FOR EACH ROW BEGIN '
-         'SELECT InsertIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
-         sql5.append(('CREATE TRIGGER "st_update1_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ != NEW._ROWID_ BEGIN '
-         'DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
-         sql5.append(('CREATE TRIGGER "st_update_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ = NEW._ROWID_ BEGIN '
-         'SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         sql5.append(('PRAGMA writable_schema=ON;'))
+         #sql5.append(('DROP TRIGGER "st_insert_trigger_'+featureName+'_SHAPE";'))
+         #sql5.append(('DROP TRIGGER "st_delete_trigger_'+featureName+'_SHAPE";'))
+         #sql5.append(('DROP TRIGGER "st_update_trigger_'+featureName+'_SHAPE";'))
+         #sql5.append(('DROP TRIGGER "st_update1_trigger_'+featureName+'_SHAPE";'))
+
+         #sql5.append(('CREATE TRIGGER "st_insert_trigger_'+featureName+'_SHAPE" AFTER INSERT ON '+featureName+' FOR EACH ROW BEGIN '
+         #'INSERT INTO "st_spindex__'+featureName+'_SHAPE"(pkid) values(NEW.SHAPE,NEW._ROWID_,2); END'))
+         #SELECT InsertIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         #sql5.append(('CREATE TRIGGER "st_delete_trigger_'+featureName+'_SHAPE" AFTER DELETE ON '+featureName+' FOR EACH ROW BEGIN DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; END'))
+         #sql5.append(('CREATE TRIGGER "st_update_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ = NEW._ROWID_ BEGIN '
+         #'SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         #SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         #sql5.append(('CREATE TRIGGER "st_update1_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ != NEW._ROWID_ BEGIN DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         
+         #sql5.append(('CREATE TRIGGER "st_delete_trigger_'+featureName+'_SHAPE" AFTER DELETE ON '+featureName+' FOR EACH ROW BEGIN '
+         #'DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; END'))
+         #sql5.append(('CREATE TRIGGER "st_insert_trigger_'+featureName+'_SHAPE" AFTER INSERT ON '+featureName+' FOR EACH ROW BEGIN '
+         #'SELECT InsertIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         #sql5.append(('CREATE TRIGGER "st_update1_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ != NEW._ROWID_ BEGIN '
+         #'DELETE FROM "st_spindex__'+featureName+'_SHAPE" WHERE pkid = OLD._ROWID_; SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
+         #sql5.append(('CREATE TRIGGER "st_update_trigger_'+featureName+'_SHAPE" AFTER UPDATE OF SHAPE ON '+featureName+' WHEN OLD._ROWID_ = NEW._ROWID_ BEGIN '
+         #'SELECT UpdateIndexEntry ("st_spindex__'+featureName+'_SHAPE",NEW.SHAPE,NEW._ROWID_,2); END'))
          sql5.append(('UPDATE "GDB_TableRegistry" set object_flags=278535 where table_name=\''+featureName+"'"))
+         
+         sql5.append(('PRAGMA writable_schema=OFF;'))
+
+
      else:
          sql5.append(('UPDATE "GDB_TableRegistry" set object_flags=262147 where table_name=\''+featureName+"'"))
 
@@ -2325,9 +2344,22 @@ def createReplica(mxd,dataFrame,allData,replicaDestinationPath,toolkitPath,usern
   sql1=sql1+("</GPSyncDatasets><AttachmentsSyncDirection>esriAttachmentsSyncDirectionBidirectional</AttachmentsSyncDirection></GPSyncReplica>'"
    ", NULL, NULL, NULL from GDB_Items;")
 
-  sql5.append(('PRAGMA writable_schema=ON;'))
-  sql5.append(('delete FROM sqlite_master where type=\'trigger\' and name like \'%_Shape\''))
-  sql5.append(('PRAGMA writable_schema=OFF;'))
+  
+  #sql5.append(('PRAGMA writable_schema=ON;'))
+  #sql5.append(('DROP TRIGGER "st_insert_trigger_GDB_Items_Shape";'))
+  #sql5.append(('DROP TRIGGER "st_delete_trigger_GDB_Items_Shape";'))
+  #sql5.append(('DROP TRIGGER "st_update_trigger_GDB_Items_Shape";'))
+  #sql5.append(('DROP TRIGGER "st_update1_trigger_GDB_Items_Shape"'))
+  
+  #sql5.append(('CREATE TRIGGER "st_insert_trigger_GDB_Items_Shape" AFTER INSERT ON GDB_Items FOR EACH ROW BEGIN SELECT InsertIndexEntry ("st_spindex__GDB_Items_Shape",NEW.Shape,NEW._ROWID_,2); END'));
+  #sql5.append(('CREATE TRIGGER "st_delete_trigger_GDB_Items_Shape" AFTER DELETE ON GDB_Items FOR EACH ROW BEGIN DELETE FROM "st_spindex__GDB_Items_Shape" WHERE pkid = OLD._ROWID_; END'));
+  #sql5.append(('CREATE TRIGGER "st_update_trigger_GDB_Items_Shape" AFTER UPDATE OF Shape ON GDB_Items WHEN OLD._ROWID_ = NEW._ROWID_ BEGIN SELECT UpdateIndexEntry ("st_spindex__GDB_Items_Shape",NEW.Shape,NEW._ROWID_,2); END'));
+  #sql5.append(('CREATE TRIGGER "st_update1_trigger_GDB_Items_Shape" AFTER UPDATE OF Shape ON GDB_Items WHEN OLD._ROWID_ != NEW._ROWID_ BEGIN DELETE FROM "st_spindex__GDB_Items_Shape" WHERE pkid = OLD._ROWID_; SELECT UpdateIndexEntry ("st_spindex__GDB_Items_Shape",NEW.Shape,NEW._ROWID_,2); END'));
+  #sql5.append(('PRAGMA writable_schema=OFF;'))
+  
+  #sql5.append(('PRAGMA writable_schema=ON;'))
+  #sql5.append(('delete FROM sqlite_master where type=\'trigger\' and name like \'%_Shape\''))
+  #sql5.append(('PRAGMA writable_schema=OFF;'))
 
   #sql1=sql1+("#PRAGMA writable_schema=ON;update sqlite_master set sql=replace(sql,'OBJECTID integer','OBJECTID int32') where name in ("+tables+") and type='table';#PRAGMA writable_schema=OFF;")
   #serviceRep=[sql1,sql2,sql4]
@@ -3734,6 +3766,7 @@ def printMessage(str):
        arcpy.AddMessage(str)
      except Exception as e:
        print(str)
+
 
 def main():
     tbx=Toolbox()
