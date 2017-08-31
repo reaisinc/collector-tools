@@ -1425,8 +1425,10 @@ class CreateNewProject(object):
                   #save to config too for easy access
                   #tableObj["editFieldsInfo"]=editorTracking
                else:
-                  del feature_json['editFieldsInfo']
-
+                  try:
+                        del feature_json['editFieldsInfo']
+                  except Exception as e:
+                        pass
                feature_json['editingInfo']={"lastEditDate":created_ts}
 
                if arcpy.Exists(rootFGDB+"/"+featureName+"__ATTACH"):
@@ -1594,7 +1596,10 @@ class CreateNewProject(object):
                   #save to config too for easy access
                   tableObj["editFieldsInfo"]=editorTracking
                else:
-                  del feature_json['editFieldsInfo']
+                  try:
+                       del feature_json['editFieldsInfo']
+                  except Exception as e:
+                       pass
 
                feature_json['editingInfo']={"lastEditDate":created_ts}
 
